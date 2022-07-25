@@ -44,5 +44,9 @@ $ fvm use 3.0.5
 $ echo 16 > .nvmrc
 $ nvm use
 $ git init
+$ git add .
 $ git commit -m "first commit"
+$ git branch -M main
+$ git remote add origin git@github.com:MichinobuMaeda/flamingzipper.git
+$ git push -u origin main
 ````
