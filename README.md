@@ -28,6 +28,9 @@ https://console.firebase.google.com/
     - Details & settings
         - Usage and billing
             - Modify plan: Blaze
+    - Your apps
+        - </> ( Web )
+            - App nickname: Flaming Zipper
 - Build
     - Authentication
         - Get started

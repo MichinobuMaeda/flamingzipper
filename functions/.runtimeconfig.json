@@ -1,0 +1,9 @@
+{
+  "initial": {
+    "email": "primary@example.com",
+    "password": "password",
+    "url": "http://localhost:5000/"
+  },
+  "region": "asia-northeast2",
+  "env": "test"
+}

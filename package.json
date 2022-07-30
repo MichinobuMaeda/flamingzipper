@@ -2,13 +2,14 @@
   "name": "flamingzipper",
   "version": "1.0.0",
   "description": "Flaming Zipper",
-  "main": "index.js",
-  "directories": {
-    "lib": "lib",
-    "test": "test"
-  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "deploy:data": "npx firebase firestore:delete -f service/deployment",
+    "start:ui": "fvm flutter run -d chrome",
+    "start:emu": "npx firebase emulators:exec --only auth,functions,firestore,storage --ui --import test/init/firebase",
+    "start": "npm run start:emu -- \"npm run deploy:data && npm run start:ui\"",
+    "test:functions": "npm --prefix functions run lint && npm --prefix functions test -- --silent",
+    "test:ui": "echo fvm flutter test",
+    "test": "npm run test:functions && npm run test:ui"
   },
   "repository": {
     "type": "git",
