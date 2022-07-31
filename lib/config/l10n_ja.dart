@@ -37,6 +37,9 @@ class L10nJa extends L10n {
   String get save => '保存';
 
   @override
+  String get register => '登録';
+
+  @override
   String get delete => '削除';
 
   @override
@@ -155,14 +158,15 @@ class L10nJa extends L10n {
   // Messages: completed
 
   @override
-  String get sentReauthUrl => '登録されたアドレスにメールを送信しました。メールに記載された手順で再ログインしてください。';
+  String get sentReauthUrl => '登録されたアドレスにメールを送信しました。'
+      'メールに記載された手順で再ログインしてください。';
 
   @override
   String get sentUrlForSignIn => 'ログイン用のリンクをメールで送信しました。';
 
   @override
-  String get sentUrlToVerify =>
-      '確認のためのメールを送信しました。そのメールに記載された確認のためのボタンを押してもこの表示が自動で切り替わらない場合は下の「更新」ボタンを押してください。';
+  String get sentUrlToVerify => '登録されたメールアドレスに確認のためのメールを送信しました。'
+      'そのメールに記載された指示に従って操作してください。';
 
   @override
   String get successRequest => '完了しました。';
@@ -206,16 +210,17 @@ class L10nJa extends L10n {
   // Messages: guide
 
   @override
-  String get noEmailAndPassword =>
-      'メールアドレスとパスワードは設定されていません。メールアドレスとパスワードの設定は管理者に依頼してください。';
+  String get noEmailAndPassword => 'メールアドレスとパスワードは設定されていません。'
+      'メールアドレスとパスワードの設定は管理者に依頼してください。';
 
   @override
-  String get reauthRequired =>
-      'メールアドレスまたはパスワードを変更する場合、現在のメールアドレスまたはパスワードの確認が必要です。';
+  String get reauthRequired => 'メールアドレスまたはパスワードを変更するために、'
+      '現在のメールアドレスまたはパスワードの確認が必要です。';
 
   @override
   String get emailVerificationRequired =>
-      '初めて使うメールアドレスの確認が必要です。下の「送信」ボタンを押してください。登録されたメールアドレスに確認のためのメールを送信しますので、そのメールに記載された確認のためのボタンを押してください。';
+      '初めて使うメールアドレスの確認が必要です。下の「送信」ボタンを押してください。'
+      '登録されたメールアドレスに確認のためのメールを送信します。';
 
   @override
   String get pleaseWait => 'しばらくお待ちください';

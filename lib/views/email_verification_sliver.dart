@@ -13,39 +13,45 @@ class EmailVerification extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return SliverToBoxAdapter(
-      child: SizedBox(
-        height: 240.0,
-        child: Column(
-          children: [
-            Flexible(child: Text(L10n.of(context)!.emailVerificationRequired)),
-            const SizedBox(height: 8.0),
-            ElevatedButton(
-              onPressed: AuthRepo().sendEmailVerification,
-              style: filledButtonStyle(context),
-              child: Text(L10n.of(context)!.send),
-            ),
-            const SizedBox(height: 8.0),
-            ElevatedButton(
-              onPressed: () async {
-                final User? user = await AuthRepo().reloadUser();
-                ref.watch(authnProvider.notifier).state =
-                    AuthUser.fromUser(user);
-              },
-              style: filledButtonStyle(context),
-              child: Text(L10n.of(context)!.confirm),
-            ),
-            const SizedBox(height: 8.0),
-            Flexible(child: Text(L10n.of(context)!.signOutForRetry)),
-            const SizedBox(height: 8.0),
-            ElevatedButton(
-              onPressed: AuthRepo().signOutIfSignedIn,
-              style: filledButtonStyle(context),
-              child: Text(L10n.of(context)!.signOut),
-            ),
-          ],
+    return SliverWithSingleColumn(
+      children: [
+        Text(L10n.of(context)!.emailVerificationRequired),
+        const SizedBox(height: spacing),
+        OutlinedButton(
+          onPressed: () async {
+            await AuthRepo().sendEmailVerification();
+            ref.watch(authnProvider.notifier).state = ref
+                .watch(authnProvider.notifier)
+                .state
+                .copyWithSentEmailVerification(true);
+          },
+          style: fullWithdOutlinedButtonStyle,
+          child: Text(L10n.of(context)!.send),
         ),
-      ),
+        const SizedBox(height: spacing),
+        Text(L10n.of(context)!.sentUrlToVerify),
+        if (ref.watch(
+            authnProvider.select((authn) => authn.sentEmailVerification)))
+          const SizedBox(height: spacing),
+        if (ref.watch(
+            authnProvider.select((authn) => authn.sentEmailVerification)))
+          OutlinedButton(
+            onPressed: () async {
+              final User? user = await AuthRepo().reloadUser();
+              ref.watch(authnProvider.notifier).state = AuthUser.fromUser(user);
+            },
+            style: fullWithdOutlinedButtonStyle,
+            child: Text(L10n.of(context)!.confirm),
+          ),
+        const SizedBox(height: spacing),
+        Text(L10n.of(context)!.signOutForRetry),
+        const SizedBox(height: spacing),
+        OutlinedButton(
+          onPressed: AuthRepo().signOutIfSignedIn,
+          style: fullWithdOutlinedButtonStyle,
+          child: Text(L10n.of(context)!.signOut),
+        ),
+      ],
     );
   }
 }

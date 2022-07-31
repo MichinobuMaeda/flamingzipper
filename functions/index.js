@@ -14,20 +14,6 @@ exports.deployment = functions.region(functions.config().region)
         },
     );
 
-exports.onCreateAccount = functions.region(functions.config().region)
-    .firestore.document("accounts/{accountId}").onCreate(
-        function(doc) {
-          return accounts.onCreateAccount(firebase, doc);
-        },
-    );
-
-exports.onUpdateAccount = functions.region(functions.config().region)
-    .firestore.document("accounts/{accountId}").onUpdate(
-        function(chane) {
-          return accounts.onUpdateAccount(firebase, chane);
-        },
-    );
-
 exports.updateUserEmail = functions.region(functions.config().region)
     .https.onCall(
         function(data, context) {
@@ -47,20 +33,3 @@ exports.updateUserPassword = functions.region(functions.config().region)
               accounts.updateUserPassword(data),
           );
         });
-
-exports.invite = functions.region(functions.config().region)
-    .https.onCall(
-        function(data, context) {
-          return requireAdminAccount(
-              firebase,
-              context.auth?.uid,
-              accounts.invite(data),
-          );
-        });
-
-exports.getToken = functions.region(functions.config().region)
-    .https.onCall(
-        function(data) {
-          return accounts.getToken(firebase, data);
-        },
-    );

@@ -53,7 +53,6 @@ describe("deployment", function() {
         version: "1.0.0+0",
         url,
         seed: expect.any(String),
-        invExp: 10 * 24 * 3600 * 1000,
         policy: expect.any(String),
         createdAt: expect.any(Date),
         createdBy: "system",

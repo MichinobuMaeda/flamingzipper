@@ -7,20 +7,36 @@ class AuthUser extends Equatable {
   final String? displayName;
   final String? email;
   final bool? emailVerified;
+  final bool sentEmailVerification;
 
-  const AuthUser()
-      : loaded = false,
-        uid = null,
-        displayName = null,
-        email = null,
-        emailVerified = null;
+  const AuthUser({
+    this.loaded = false,
+    this.uid,
+    this.displayName,
+    this.email,
+    this.emailVerified,
+    this.sentEmailVerification = false,
+  });
 
   AuthUser.fromUser(User? user)
       : loaded = true,
         uid = user?.uid,
         displayName = user?.displayName,
         email = user?.email,
-        emailVerified = user?.emailVerified;
+        emailVerified = user?.emailVerified,
+        sentEmailVerification = false;
+
+  AuthUser copyWithSentEmailVerification(
+    bool sentEmailVerification,
+  ) =>
+      AuthUser(
+        loaded: loaded,
+        uid: uid,
+        displayName: displayName,
+        email: email,
+        emailVerified: emailVerified,
+        sentEmailVerification: sentEmailVerification,
+      );
 
   @override
   List<Object?> get props => [
@@ -29,5 +45,6 @@ class AuthUser extends Equatable {
         displayName,
         email,
         emailVerified,
+        sentEmailVerification,
       ];
 }

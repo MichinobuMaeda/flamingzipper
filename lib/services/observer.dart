@@ -9,6 +9,7 @@ import '../models/auth_user.dart';
 import '../models/client_status.dart';
 import '../models/conf.dart';
 import '../models/group.dart';
+import '../models/sign_in_sign_up.dart';
 import '../services/auth_repository.dart';
 import '../services/firestore_repository.dart';
 import '../services/providers.dart';
@@ -56,6 +57,8 @@ class MyObserver extends ProviderObserver {
         case ProviderName.updateAvailable:
           break;
         case ProviderName.authz:
+          break;
+        case ProviderName.signInSignUp:
           break;
       }
     }
@@ -136,6 +139,13 @@ class MyObserver extends ProviderObserver {
             container,
           );
           break;
+        case ProviderName.signInSignUp:
+          didUpdateSignInSignUpProvider(
+            previousValue as SignInSignUp?,
+            newValue as SignInSignUp,
+            container,
+          );
+          break;
       }
     }
   }
@@ -195,10 +205,18 @@ class MyObserver extends ProviderObserver {
     }
   }
 
+  void resetSignInSignUpProvider(
+    ProviderContainer container,
+  ) =>
+      container.read(signInSignUpProvider.notifier).state =
+          const SignInSignUp();
+
   Future<void> resetUserData(
     ProviderContainer container,
   ) async {
     debugPrint('${DateTime.now().toIso8601String()} resetUserData()');
+
+    resetSignInSignUpProvider(container);
 
     await _accountsSub?.cancel();
     _accountsSub = null;
@@ -221,6 +239,8 @@ class MyObserver extends ProviderObserver {
     ProviderContainer container,
   ) async {
     final adminsDoc = await db.adminsRef.get();
+
+    resetSignInSignUpProvider(container);
 
     if (!adminsDoc.exists) {
       resetUserData(container);
@@ -434,5 +454,14 @@ class MyObserver extends ProviderObserver {
     } else {
       // Nothing to do.
     }
+  }
+
+  void didUpdateSignInSignUpProvider(
+    SignInSignUp? previousValue,
+    SignInSignUp newValue,
+    ProviderContainer container,
+  ) {
+    debugPrint('${DateTime.now().toIso8601String()} '
+        'didUpdateSignInSignUpProvider($previousValue, $newValue)');
   }
 }

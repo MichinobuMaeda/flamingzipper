@@ -36,7 +36,6 @@ async function deployment(firebase, config, snap) {
           version: "1.0.0+0",
           url: config.initial.url,
           seed: randomBytes(128).toString("hex"),
-          invExp: 10 * 24 * 3600 * 1000,
           policy: `
 # Privacy policy
 

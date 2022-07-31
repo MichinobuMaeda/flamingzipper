@@ -1,7 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../models/account.dart';
-
 FirebaseFirestore _getInstance(FirebaseFirestore? instance) =>
     instance ?? FirebaseFirestore.instance;
 
@@ -21,40 +19,55 @@ class FirestoreRepo {
 
   Future<void> addDoc(
     CollectionReference ref,
-    Account me,
+    String uid,
     Map<String, dynamic> value,
   ) async {
     final ts = DateTime.now();
     await ref.add({
       ...value,
       'createdAt': ts,
-      'createdBy': me.id,
+      'createdBy': uid,
       'updatedAt': ts,
-      'updatedBy': me.id,
+      'updatedBy': uid,
+    });
+  }
+
+  Future<void> setDoc(
+    DocumentReference ref,
+    String uid,
+    Map<String, dynamic> value,
+  ) async {
+    final ts = DateTime.now();
+    await ref.set({
+      ...value,
+      'createdAt': ts,
+      'createdBy': uid,
+      'updatedAt': ts,
+      'updatedBy': uid,
     });
   }
 
   Future<void> updateDoc(
     DocumentReference ref,
-    Account me,
+    String uid,
     Map<String, dynamic> value,
   ) async {
     final ts = DateTime.now();
     await ref.update({
       ...value,
       'updatedAt': ts,
-      'updatedBy': me.id,
+      'updatedBy': uid,
     });
   }
 
   Future<void> deleteDoc(
     DocumentReference ref,
-    Account me,
+    String uid,
   ) async {
     final ts = DateTime.now();
     await ref.update({
       'deletedAt': ts,
-      'deletedBy': me.id,
+      'deletedBy': uid,
     });
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import './firestore_repository.dart';
 
 class AuthRepo {
   final FirebaseAuth _instance;
@@ -24,11 +25,33 @@ class AuthRepo {
 
   Stream<User?> authStateChanges() => _instance.authStateChanges();
 
+  Future<void> createUserWithEmailAndPassword({
+    required String displayName,
+    required String email,
+    required String password,
+    required FirestoreRepo db,
+  }) async {
+    await _instance.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    await _instance.currentUser?.updateDisplayName(displayName);
+    db.setDoc(
+      db.accountsRef.doc(_instance.currentUser?.uid),
+      _instance.currentUser?.uid ?? 'unknown',
+      {
+        "name": displayName,
+        "valid": true,
+      },
+    );
+  }
+
   Future<void> signInWithEmailAndPassword({
     required String email,
     required String password,
   }) async {
-    _instance.signInWithEmailAndPassword(email: email, password: password);
+    await _instance.signInWithEmailAndPassword(
+        email: email, password: password);
   }
 
   Future<void> sendEmailVerification() async {

@@ -47,6 +47,8 @@ void main() async {
     }
   }
 
+  FirebaseAuth.instance.setLanguageCode('ja_JP');
+
   AuthRepo().handleDeepLink(await deepLink());
 
   debugPrint('${DateTime.now().toIso8601String()} runApp()');

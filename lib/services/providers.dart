@@ -6,6 +6,7 @@ import '../models/account.dart';
 import '../models/conf.dart';
 import '../models/client_status.dart';
 import '../models/group.dart';
+import '../models/sign_in_sign_up.dart';
 
 enum ProviderName {
   testMode,
@@ -17,7 +18,8 @@ enum ProviderName {
   me,
   admins,
   updateAvailable,
-  authz
+  authz,
+  signInSignUp,
 }
 
 final testModeProvider = Provider<bool>(
@@ -43,6 +45,11 @@ final accountsProvider = StateProvider<List<Account>>(
 final groupsProvider = StateProvider<List<Group>>(
   name: ProviderName.groups.name,
   (_) => [],
+);
+
+final signInSignUpProvider = StateProvider<SignInSignUp>(
+  name: ProviderName.signInSignUp.name,
+  (_) => const SignInSignUp(),
 );
 
 // Calculated states

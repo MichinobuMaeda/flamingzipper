@@ -40,32 +40,6 @@ describe("deployment", function() {
   });
 });
 
-describe("onCreateAccount", function() {
-  it("calls onCreateAccount() with given data.", function() {
-    const wrapped = test.wrap(index.onCreateAccount);
-    wrapped({id: "user01"});
-    expect(accounts.onCreateAccount.mock.calls).toEqual([
-      [
-        expect.any(Object), // FirebaseApp
-        {id: "user01"},
-      ],
-    ]);
-  });
-});
-
-describe("onUpdateAccount", function() {
-  it("calls onUpdateAccount() with given data.", function() {
-    const wrapped = test.wrap(index.onUpdateAccount);
-    wrapped({id: "user01"});
-    expect(accounts.onUpdateAccount.mock.calls).toEqual([
-      [
-        expect.any(Object), // FirebaseApp
-        {id: "user01"},
-      ],
-    ]);
-  });
-});
-
 describe("updateUserEmail", function() {
   it("calls requireAdminAccount()" +
   "with callback updateUserEmail().", function() {
@@ -102,37 +76,6 @@ describe("updateUserPassword", function() {
     ]);
     expect(accounts.updateUserPassword.mock.calls).toEqual([
       [{id, password}],
-    ]);
-  });
-});
-
-describe("invite", function() {
-  it("calls requireAdminAccount()" +
-  "with callback invite().", function() {
-    const wrapped = test.wrap(index.invite);
-    wrapped({invitee: "user01id"}, {auth: {uid: "adminid"}});
-    expect(guard.requireAdminAccount.mock.calls).toEqual([
-      [
-        expect.any(Object), // FirebaseApp
-        "adminid",
-        expect.any(Function),
-      ],
-    ]);
-    expect(accounts.invite.mock.calls).toEqual([
-      [{invitee: "user01id"}],
-    ]);
-  });
-});
-
-describe("getToken", function() {
-  it("calls getToken() with given data.", function() {
-    const wrapped = test.wrap(index.getToken);
-    wrapped({code: "invitation code"});
-    expect(accounts.getToken.mock.calls).toEqual([
-      [
-        expect.any(Object), // FirebaseApp
-        {code: "invitation code"},
-      ],
     ]);
   });
 });

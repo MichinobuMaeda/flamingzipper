@@ -18,6 +18,9 @@ class BreadCrumbsSliver extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = GoRouter.of(context);
+    final register = ref.watch(
+      signInSignUpProvider.select((value) => value.register),
+    );
 
     return SliverToBoxAdapter(
       child: Container(
@@ -57,8 +60,14 @@ class BreadCrumbsSliver extends ConsumerWidget {
                             onPressed: routerState.name == RouteName.home.name
                                 ? null
                                 : () => router.goNamed(RouteName.home.name),
-                            icon: const Icon(Icons.login),
-                            label: Text(L10n.of(context)!.signIn),
+                            icon: Icon(
+                              register ? Icons.person_add : Icons.login,
+                            ),
+                            label: Text(
+                              register
+                                  ? L10n.of(context)!.register
+                                  : L10n.of(context)!.signIn,
+                            ),
                           ),
                         if (ref.watch(authzProvider) == Authz.notVerified)
                           TextButton.icon(

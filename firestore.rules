@@ -13,7 +13,11 @@ service cloud.firestore {
     }
     match /accounts/{accountId} {
       allow read, write: if isAdmin();
-      allow read, update: if request.auth.uid == accountId;
+      allow read, write: if request.auth.uid == accountId;
+    }
+    match /groups/admins {
+      allow read, write: if isAdmin();
+      allow read: if request.auth != null;
     }
     match /groups/{groupId} {
       allow read, write: if isAdmin();

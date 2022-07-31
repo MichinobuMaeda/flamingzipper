@@ -37,6 +37,9 @@ class L10nEn extends L10n {
   String get save => 'Save';
 
   @override
+  String get register => 'register';
+
+  @override
   String get delete => 'Delete';
 
   @override
@@ -160,14 +163,16 @@ class L10nEn extends L10n {
 
   @override
   String get sentReauthUrl =>
-      'An email has been sent to the registered address. Please sign in again according to the procedure described in the email.';
+      'An email has been sent to the registered address. '
+      'Please sign in again according to the procedure described in the email.';
 
   @override
   String get sentUrlForSignIn => 'Sent an e-mail for sign in';
 
   @override
   String get sentUrlToVerify =>
-      'An email for confirmation has been sent. If this display does not switch automatically even if you press the confirmation button described in the email, please press the "Update" button below.';
+      'An email for confirmation has been sentto the registered e-mail address.'
+      ' so please follow the instructions. described in the e-mail.';
 
   @override
   String get successRequest => 'Completed.';
@@ -217,15 +222,18 @@ class L10nEn extends L10n {
 
   @override
   String get noEmailAndPassword =>
-      'No email address and password have been set. Ask the administrator to set your e-mail address and password.';
+      'No email address and password have been set.'
+      ' Ask the administrator to set your e-mail address and password.';
 
   @override
-  String get reauthRequired =>
-      'If you change your email address or password, you will need to confirm your current email address or password.';
+  String get reauthRequired => 'If you change your email address or password,'
+      ' you will need to confirm your current email address or password.';
 
   @override
   String get emailVerificationRequired =>
-      'You need to confirm the email address you use for the first time. Please press the "Send" button below. A confirmation e-mail will be sent to the registered e-mail address, so please press the confirmation e-mail described in the e-mail.';
+      'You need to confirm the email address you use for the first time.'
+      ' Please press the "Send" button below.'
+      ' A confirmation e-mail will be sent to the registered e-mail address,';
 
   @override
   String get pleaseWait => 'Loading now';

@@ -49,9 +49,9 @@ function createMockFirebase(jest) {
   const mockCollectionRef = {
     doc: mockDoc,
     add: jest.fn(),
-    where: jest.fn(function() {
-      return mockQueryRef;
-    }),
+    // where: jest.fn(function() {
+    //   return mockQueryRef;
+    // }),
   };
 
   const mockCollection = jest.fn(function() {

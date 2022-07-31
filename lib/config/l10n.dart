@@ -107,6 +107,7 @@ abstract class L10n {
   String get send;
   String get confirm;
   String get save;
+  String get register;
   String get delete;
   String get restore;
   String get cancel;

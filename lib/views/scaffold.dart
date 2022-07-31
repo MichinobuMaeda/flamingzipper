@@ -9,7 +9,9 @@ import '../services/providers.dart';
 import '../services/web.dart';
 import '../views/loading_sliver.dart';
 import '../views/email_verification_sliver.dart';
+import '../views/sign_in_sign_up_sliver.dart';
 import '../views/sign_in_sliver.dart';
+import '../views/sign_up_sliver.dart';
 import '../views/test_sign_in_sliver.dart';
 import '../views/test_sign_out_sliver.dart';
 import 'bread_crumbs_sliver.dart';
@@ -31,6 +33,9 @@ class MyScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     debugPrint('${DateTime.now().toIso8601String()} Scaffold');
     bool updateAvailable = ref.watch(updateAvailableProvider);
+    final register = ref.watch(
+      signInSignUpProvider.select((value) => value.register),
+    );
 
     return Scaffold(
       body: CustomScrollView(
@@ -103,7 +108,8 @@ class MyScaffold extends ConsumerWidget {
                     ]
                   : ref.watch(authzProvider) == Authz.guest
                       ? [
-                          const SignInSliver(),
+                          const SignInSignUpSliver(),
+                          register ? SignUpSliver() : SignInSliver(),
                           if (ref.watch(testModeProvider))
                             const TestSignInSliver(),
                         ]
