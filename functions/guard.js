@@ -7,7 +7,7 @@
 async function isValidAccount(firebase, uid) {
   if (!uid) throw Error(`uid: ${uid}`);
 
-  const db = firebase.firestore();
+  const {db} = firebase;
   const account = await db.collection("accounts").doc(uid).get();
 
   if (account.exists !== true) {
@@ -48,7 +48,7 @@ async function requireValidAccount(firebase, uid, cb) {
 async function requireAdminAccount(firebase, uid, cb) {
   await isValidAccount(firebase, uid);
 
-  const db = firebase.firestore();
+  const {db} = firebase;
   const admins = await db.collection("groups").doc("admins").get();
 
   if (!admins.get("accounts")?.includes(uid)) {

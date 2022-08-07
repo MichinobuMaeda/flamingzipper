@@ -39,19 +39,26 @@ function createMockFirebase(jest) {
 
   const mockDocRef = {
     get: jest.fn(),
+    set: jest.fn(),
     update: jest.fn(),
   };
 
   const mockQueryRef = {
     get: jest.fn(),
+    orderBy: jest.fn(function() {
+      return mockQueryRef;
+    }),
+    limit: jest.fn(function() {
+      return mockQueryRef;
+    }),
   };
 
   const mockCollectionRef = {
     doc: mockDoc,
     add: jest.fn(),
-    // where: jest.fn(function() {
-    //   return mockQueryRef;
-    // }),
+    where: jest.fn(function() {
+      return mockQueryRef;
+    }),
   };
 
   const mockCollection = jest.fn(function() {
@@ -67,16 +74,26 @@ function createMockFirebase(jest) {
   };
 
   const firebase = {
-    auth: function() {
-      return mockAuth;
+    auth: mockAuth,
+    db: {
+      collection: mockCollection,
+      batch: function() {
+        return mockBatch;
+      },
     },
-    firestore: function() {
-      return {
-        collection: mockCollection,
-        batch: function() {
-          return mockBatch;
-        },
-      };
+    bucket: {
+      file: jest.fn(function() {
+        return {
+          save: jest.fn(),
+        };
+      }),
+    },
+    logger: {
+      log: jest.fn(),
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
     },
   };
 

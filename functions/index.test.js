@@ -2,11 +2,13 @@ const test = require("firebase-functions-test")();
 const deployment = require("./deployment");
 const guard = require("./guard");
 const accounts = require("./accounts");
+const zip = require("./zip");
 const index = require("./index.js");
 
 jest.mock("./deployment");
 jest.mock("./guard");
 jest.mock("./accounts");
+jest.mock("./zip");
 
 accounts.updateUserEmail = jest.fn(function() {
   return function() {};
@@ -77,5 +79,21 @@ describe("updateUserPassword", function() {
     expect(accounts.updateUserPassword.mock.calls).toEqual([
       [{id, password}],
     ]);
+  });
+});
+
+describe("kenAll", function() {
+  it("calls kenAll()", function() {
+    const wrapped = test.wrap(index.kenAll);
+    wrapped();
+    expect(zip.kenAll.mock.calls).toHaveLength(1);
+  });
+});
+
+describe("jigyosyo", function() {
+  it("calls jigyosyo()", function() {
+    const wrapped = test.wrap(index.jigyosyo);
+    wrapped();
+    expect(zip.jigyosyo.mock.calls).toHaveLength(1);
   });
 });

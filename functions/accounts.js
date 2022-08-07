@@ -8,10 +8,8 @@ const EMPTY_EMAIL = "unknown@domain.invalid";
  * @param {object} doc the created doc.
  * @return {Promise} void
  */
-async function onCreateAccount(firebase, doc) {
+async function onCreateAccount({auth}, doc) {
   const displayName = doc.get("name") || "";
-
-  const auth = firebase.auth();
   let user;
 
   try {
@@ -30,16 +28,15 @@ async function onCreateAccount(firebase, doc) {
  * @param {object} change the updated doc
  * @return {Promise} void
  */
-async function onUpdateAccount(firebase, {after}) {
+async function onUpdateAccount({auth}, {after}) {
   try {
-    const auth = firebase.auth();
     const user = await auth.getUser(after.id);
 
     if ((user.displayName || "") !== (after.get("name") || "")) {
       await auth.updateUser(after.id, {displayName: after.get("name") || ""});
     }
   } catch (e) {
-    await onCreateAccount(firebase, after);
+    await onCreateAccount({auth}, after);
   }
 }
 
@@ -62,9 +59,8 @@ async function generateRandomePassword(seed) {
  * @return {function} the function for invited user
  */
 function updateUserEmail({id, email}) {
-  return async function(firebase, uid) {
+  return async function({auth}, uid) {
     logger.info(`update email: ${email} of ${id} by ${uid}`);
-    const auth = firebase.auth();
     await auth.updateUser(id, {email: email || EMPTY_EMAIL});
   };
 }
@@ -75,9 +71,8 @@ function updateUserEmail({id, email}) {
  * @return {function} the function for invited user
  */
 function updateUserPassword({id, password}) {
-  return async function(firebase, uid) {
+  return async function({auth}, uid) {
     logger.info(`update password of ${id} by ${uid}`);
-    const auth = firebase.auth();
     await auth.updateUser(
         id,
         {password: password || await generateRandomePassword(id)},

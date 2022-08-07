@@ -7,14 +7,12 @@ const {logger} = require("firebase-functions");
  * @param {object} snap deleted doc
  * @return {Promise} void
  */
-async function deployment(firebase, config, snap) {
+async function deployment({auth, db}, config, snap) {
   const deleted = snap.data();
   const current = deleted?.version || 0;
   logger.info(`Get version: ${current}`);
   await snap.ref.set({version: current});
 
-  const auth = firebase.auth();
-  const db = firebase.firestore();
 
   const version = 1;
   if (current < version) {
