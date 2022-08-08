@@ -7,21 +7,7 @@ jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Cache functions/node_modules
-        uses: actions/cache@v2
-        id: cache-functions-node_modules
-        with:
-          path: functions/node_modules
-          key: ${{ runner.os }}-${{ hashFiles('functions/package-lock.json') }}
-
-      - name: Cache node_modules
-        uses: actions/cache@v2
-        id: cache-node_modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - uses: actions/checkout@v3
 
       # - name: Cache flutter
       #   uses: actions/cache@v2
@@ -37,13 +23,17 @@ jobs:
       #     path: /home/runner/.pub-cache
       #     key: ${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
 
+      - name: Create npm cache key file
+        run: cat package-lock.json functions/package-lock.json > node-cache-key.txt  
       - name: Read .nvmrc
         run: echo ::set-output name=NODE_VERSION::$(cat .nvmrc)
         id: nvm
       - name: Use Node.js ${{ steps.nvm.outputs.NODE_VERSION }}
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
           node-version: ${{ steps.nvm.outputs.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: node-cache-key.txt
 
       - run: npm ci && cd functions && npm ci
       - run: npm test
