@@ -14,14 +14,14 @@ jobs:
         id: cache-functions-node_modules
         with:
           path: functions/node_modules
-          key: ${{ runner.os }}-${{ hashFiles('functions/yarn.lock') }}
+          key: ${{ runner.os }}-${{ hashFiles('functions/package-lock.json') }}
 
       - name: Cache node_modules
         uses: actions/cache@v2
         id: cache-node_modules
         with:
           path: node_modules
-          key: ${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          key: ${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       # - name: Cache flutter
       #   uses: actions/cache@v2
@@ -47,8 +47,7 @@ jobs:
 
       - run: npm ci && cd functions && npm ci
       - run: npm test
-      - run: npx firebase deploy --only storage,firestore,functions --force \
-            --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"
+      - run: npm run deploy:functions --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"
 
       # - uses: FirebaseExtended/action-hosting-deploy@v0
       #   with:
@@ -57,5 +56,4 @@ jobs:
       #     channelId: live
       #     projectId: flamingzipper
 
-      - run: npm run deploy:data \
-            --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"
+      - run: npm run deploy:data --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"

@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "Flaming Zipper",
   "scripts": {
-    "deploy:data": "npx firebase firestore:delete -f service/deployment",
+    "deploy:data": "firebase firestore:delete -f service/deployment",
+    "deploy:functions": "firebase deploy --only storage,firestore,functions --force ",
     "start:ui": "fvm flutter run -d chrome",
-    "start:emu": "npx firebase emulators:exec --only auth,functions,firestore,storage --ui --import test/init/firebase",
+    "start:emu": "firebase emulators:exec --only auth,functions,firestore,storage --ui --import test/init/firebase",
     "start": "npm run start:emu -- \"npm run deploy:data && npm run start:ui\"",
     "test:functions": "npm --prefix functions run lint && npm --prefix functions test -- --silent",
     "test:ui": "echo fvm flutter test",

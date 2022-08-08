@@ -12,14 +12,14 @@ jobs:
         id: cache-functions-node_modules
         with:
           path: functions/node_modules
-          key: ${{ runner.os }}-${{ hashFiles('functions/yarn.lock') }}
+          key: ${{ runner.os }}-${{ hashFiles('functions/package-lock.json') }}
 
       - name: Cache node_modules
         uses: actions/cache@v2
         id: cache-node_modules
         with:
           path: node_modules
-          key: ${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          key: ${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       # - name: Cache flutter
       #   uses: actions/cache@v2
