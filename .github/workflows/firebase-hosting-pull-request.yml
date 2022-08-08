@@ -1,0 +1,53 @@
+name: Deploy to Firebase Hosting on PR
+'on': pull_request
+jobs:
+  build_and_preview:
+    if: '${{ github.event.pull_request.head.repo.full_name == github.repository }}'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache functions/node_modules
+        uses: actions/cache@v2
+        id: cache-functions-node_modules
+        with:
+          path: functions/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('functions/yarn.lock') }}
+
+      - name: Cache node_modules
+        uses: actions/cache@v2
+        id: cache-node_modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+
+      # - name: Cache flutter
+      #   uses: actions/cache@v2
+      #   id: cache-flutter
+      #   with:
+      #     path: ${{ runner.tool_cache }}/flutter
+      #     key: ${{ runner.os }}-${{ env.FLUTTER_VERSION }}
+
+      # - name: Cache flutter packages
+      #   uses: actions/cache@v2
+      #   id: cache-flutter-packages
+      #   with:
+      #     path: /home/runner/.pub-cache
+      #     key: ${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+
+      - name: Read .nvmrc
+        run: echo ::set-output name=NODE_VERSION::$(cat .nvmrc)
+        id: nvm
+      - name: Use Node.js ${{ steps.nvm.outputs.NODE_VERSION }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ steps.nvm.outputs.NODE_VERSION }}
+
+      - run: npm ci && cd functions && npm ci
+      - run: npm test
+
+      # - uses: FirebaseExtended/action-hosting-deploy@v0
+      #   with:
+      #     repoToken: '${{ secrets.GITHUB_TOKEN }}'
+      #     firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_FLAMINGZIPPER }}'
+      #     projectId: flamingzipper
