@@ -108,4 +108,8 @@ hoices. Authentication Emulator, Functions Emulator, Firestore Emulator, Storage
 ? Which port do you want to use for the Emulator UI (leave empty to use any available port)? 4040
 ? Would you like to download the emulators now? No
 
+$ npx firebase functions:config:set initial.email=*******
+$ npx firebase functions:config:set initial.password=*******
+$ npx firebase functions:config:set initial.url=https://flamingzipper.web.app/
+$ npx firebase deploy --only functions
 ````

@@ -8,6 +8,7 @@ const {requireAdminAccount} = require("./guard");
 const accounts = require("./accounts");
 const {kenAll, jigyosyo} = require("./zip");
 
+const region = "asia-northeast2";
 const timeZone = "Asia/Tokyo";
 const timeoutSeconds = 540; // 9 min (max)
 
@@ -20,7 +21,7 @@ const firebase = {
   logger: functions.logger,
 };
 
-exports.deployment = functions.region(functions.config().region)
+exports.deployment = functions.region(region)
     .firestore.document("service/deployment")
     .onDelete(
         function(snap) {
@@ -28,7 +29,7 @@ exports.deployment = functions.region(functions.config().region)
         },
     );
 
-exports.updateUserEmail = functions.region(functions.config().region)
+exports.updateUserEmail = functions.region(region)
     .https.onCall(
         function(data, context) {
           return requireAdminAccount(
@@ -38,7 +39,7 @@ exports.updateUserEmail = functions.region(functions.config().region)
           );
         });
 
-exports.updateUserPassword = functions.region(functions.config().region)
+exports.updateUserPassword = functions.region(region)
     .https.onCall(
         function(data, context) {
           return requireAdminAccount(
@@ -48,12 +49,12 @@ exports.updateUserPassword = functions.region(functions.config().region)
           );
         });
 
-exports.kenAll = functions.region(functions.config().region)
+exports.kenAll = functions.region(region)
     .runWith({timeoutSeconds})
     .pubsub.schedule("13 3 * * *").timeZone(timeZone)
     .onRun(() => kenAll(firebase));
 
-exports.jigyosyo = functions.region(functions.config().region)
+exports.jigyosyo = functions.region(region)
     .runWith({timeoutSeconds})
     .pubsub.schedule("17 3 * * *").timeZone(timeZone)
     .onRun(() => jigyosyo(firebase));
