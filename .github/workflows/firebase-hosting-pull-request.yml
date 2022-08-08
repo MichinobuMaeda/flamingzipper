@@ -21,6 +21,13 @@ jobs:
       #     path: /home/runner/.pub-cache
       #     key: ${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
 
+      # - uses: kuhnroyal/flutter-fvm-config-action@v1
+      # - uses: subosito/flutter-action@v2
+      #   with:
+      #     flutter-version: ${{ env.FLUTTER_VERSION }}
+      #     channel: 'stable'
+      # - run: flutter pub get
+
       - name: Create npm cache key file
         run: cat package-lock.json functions/package-lock.json > node-cache-key.txt  
       - name: Read .nvmrc
@@ -36,6 +43,7 @@ jobs:
       - run: npm ci && cd functions && npm ci
       - run: npm test
 
+      # - run: flutter build web
       # - uses: FirebaseExtended/action-hosting-deploy@v0
       #   with:
       #     repoToken: '${{ secrets.GITHUB_TOKEN }}'

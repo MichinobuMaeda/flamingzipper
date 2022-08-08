@@ -4,7 +4,8 @@
   "description": "Flaming Zipper",
   "scripts": {
     "deploy:data": "firebase firestore:delete -f service/deployment",
-    "deploy:backend": "firebase deploy --only storage,firestore,functions --force ",
+    "deploy:functions": "firebase deploy --only functions --force ",
+    "deploy:stores": "firebase deploy --only storage,firestore ",
     "start:ui": "fvm flutter run -d chrome",
     "start:emu": "firebase emulators:exec --only auth,functions,firestore,storage --ui --import test/init/firebase",
     "start": "npm run start:emu -- \"npm run deploy:data && npm run start:ui\"",

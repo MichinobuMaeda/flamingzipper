@@ -8,6 +8,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: dorny/paths-filter@v2
+        id: functionschanged
+        with:
+          filters: |
+            src:
+              - 'functions/**'
 
       # - name: Cache flutter
       #   uses: actions/cache@v2
@@ -23,6 +29,13 @@ jobs:
       #     path: /home/runner/.pub-cache
       #     key: ${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
 
+      # - uses: kuhnroyal/flutter-fvm-config-action@v1
+      # - uses: subosito/flutter-action@v2
+      #   with:
+      #     flutter-version: ${{ env.FLUTTER_VERSION }}
+      #     channel: 'stable'
+      # - run: flutter pub get
+
       - name: Create npm cache key file
         run: cat package-lock.json functions/package-lock.json > node-cache-key.txt  
       - name: Read .nvmrc
@@ -37,11 +50,17 @@ jobs:
 
       - run: npm ci && cd functions && npm ci
       - run: npm test
-      - name: Deploy backends
+      - name: Deploy storage and firestore
         run: |
-          npm run deploy:backend -- \
+          npm run deploy:stores -- \
+            --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"
+      - if: steps.functionschanged.outputs.src == 'true'
+        name: Deploy functions
+        run: |
+          npm run deploy:functions -- \
             --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"
 
+      # - run: flutter build web
       # - uses: FirebaseExtended/action-hosting-deploy@v0
       #   with:
       #     repoToken: '${{ secrets.GITHUB_TOKEN }}'
