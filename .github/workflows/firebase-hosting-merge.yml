@@ -48,7 +48,7 @@ jobs:
       - run: npm ci && cd functions && npm ci
       - run: npm test
       - name: Deploy backends
-        run: npx firebase deploy --only storage,firestore,functions --force \
+        run: npx firebase deploy --only storage,firestore,functions --force --debug \
           --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"
 
       # - uses: FirebaseExtended/action-hosting-deploy@v0
