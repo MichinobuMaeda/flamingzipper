@@ -47,8 +47,9 @@ jobs:
 
       - run: npm ci && cd functions && npm ci
       - run: npm test
-      - run: npm run deploy:backend \
-          -- --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"
+      - name: Deploy backends
+        run: npx firebase deploy --only storage,firestore,functions --force \
+          --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"
 
       # - uses: FirebaseExtended/action-hosting-deploy@v0
       #   with:
@@ -57,5 +58,6 @@ jobs:
       #     channelId: live
       #     projectId: flamingzipper
 
-      - run: npm run deploy:data \
-          -- --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"
+      - name: Deploy data
+        run: npx firebase firestore:delete -f service/deployment \
+          --token "${{ secrets.FIREBASE_TOKEN_FLAMINGZIPPER }}"
