@@ -87,7 +87,9 @@ describe("kenAll", function() {
     expect(firebase.logger.info.mock.calls).toEqual([
       [page],
       [sum],
-      ["KEN_ALL.CSV"],
+      [expect.stringContaining("saved: ")],
+      ["unziped: KEN_ALL.CSV"],
+      [expect.stringContaining("parsed: ")],
     ]);
   });
 });
@@ -158,7 +160,9 @@ describe("jigyosyo", function() {
     expect(firebase.logger.info.mock.calls).toEqual([
       [page],
       [sum],
-      ["JIGYOSYO.CSV"],
+      [expect.stringContaining("saved: ")],
+      ["unziped: JIGYOSYO.CSV"],
+      [expect.stringContaining("parsed: ")],
     ]);
   });
 });
