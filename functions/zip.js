@@ -48,7 +48,7 @@ async function fetchZip(firebase, type, pageUrl, zipUrl) {
   }
 
   const id = `${type}${ts.toISOString().replace(/[^0-9]/g, "")}`;
-  await bucket.file(`zips/${id}.zip`).save(Buffer.from(respZip.data));
+  await bucket.file(`archives/${id}.zip`).save(Buffer.from(respZip.data));
   await db.collection(COLLECTION_ZIP).doc(id)
       .set({type, page, sum, createdAt: ts});
   logger.info(`saved: ${id}`);

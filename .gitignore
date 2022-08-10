@@ -1,6 +1,5 @@
 .fvm/flutter_sdk
 coverage/
-/tmp/
 
 # Miscellaneous
 *.class
