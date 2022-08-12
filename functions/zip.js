@@ -169,11 +169,18 @@ function generateZipRecord(zips, code, item) {
             )
                 .forEach(
                     function(item2) {
-                      if (zips[code] && zips[code].items) {
-                        zips[code].items.push(item2);
-                      } else {
-                        zips[code] = {items: [item2]};
+                      const zip1 = code.slice(0, 3);
+                      const zip2 = code.slice(3);
+
+                      if (!zips[zip1]) {
+                        zips[zip1] = {};
                       }
+
+                      if (!zips[zip1][zip2]) {
+                        zips[zip1][zip2] = [];
+                      }
+
+                      zips[zip1][zip2].push(item2);
                     },
                 );
           },
@@ -228,63 +235,72 @@ async function mergeJisx0402(firebase, k, j) {
 async function mergeZips(firebase, jisx0401s, jisx0402s, k, j) {
   const {bucket, logger} = firebase;
 
-  const saveMergedSimple = (o) => Object.keys(o).slice(0, 1000).map(
-      function(code) {
-        let jisx0402 = "";
-        let addr1 = "";
-        let addr2 = "";
-        let name = "";
+  const saveMergedSimple = (o) => Object.keys(o)
+      .map(
+          function(zip1) {
+            return {
+              zip1,
+              items: Object.keys(o[zip1]).reduce(
+                  function(ret, zip2) {
+                    try {
+                      let jisx0402 = "";
+                      let addr1 = "";
+                      let addr2 = "";
+                      let name = "";
 
-        try {
-          o[code].items.forEach(
-              function(item, index) {
-                if (index === 0) {
-                  jisx0402 = item.jisx0402 || "";
-                  addr1 = item.addr1 || "";
-                  addr2 = item.addr2 || "";
-                  name = item.name || "";
-                } else {
-                  if (jisx0402 !== item.jisx0402) {
-                    jisx0402 = "";
-                  }
-                  if (addr1 !== item.addr1) {
-                    addr1 = "";
-                  }
-                  if (addr2 !== item.addr2) {
-                    addr2 = "";
-                  }
-                  if (name !== item.name) {
-                    name = "";
-                  }
-                }
-              },
-          );
+                      o[zip1][zip2].forEach(
+                          function(item, index) {
+                            if (index === 0) {
+                              jisx0402 = item.jisx0402 || "";
+                              addr1 = item.addr1 || "";
+                              addr2 = item.addr2 || "";
+                              name = item.name || "";
+                            } else {
+                              if (jisx0402 !== item.jisx0402) {
+                                jisx0402 = "";
+                              }
+                              if (addr1 !== item.addr1) {
+                                addr1 = "";
+                              }
+                              if (addr2 !== item.addr2) {
+                                addr2 = "";
+                              }
+                              if (name !== item.name) {
+                                name = "";
+                              }
+                            }
+                          },
+                      );
 
-          const pref = (jisx0401s.find(
-              (item) => item.code === jisx0402.slice(0, 2),
-          ) || {name: ""}).name;
-          const city = (jisx0402s.find(
-              (item) => item.code === jisx0402,
-          ) || {name: ""}).name;
+                      const pref = (jisx0401s.find(
+                          (item) => item.code === jisx0402.slice(0, 2),
+                      ) || {name: ""}).name;
+                      const city = (jisx0402s.find(
+                          (item) => item.code === jisx0402,
+                      ) || {name: ""}).name;
 
-          return {code, pref, city, addr1, addr2, name};
-        } catch (e) {
-          logger.error(e);
-          return null;
-        }
-      },
-  ).reduce(
-      async function(ret, cur) {
-        await ret;
-        if (cur) {
-          const {code, ...data} = cur;
-          return bucket.file(`simple/${code}.json`)
-              .save(JSON.stringify(data));
-        }
-        return null;
-      },
-      Promise.resolve(),
-  );
+                      return {...ret, [zip2]: {pref, city, addr1, addr2, name}};
+                    } catch (e) {
+                      logger.error(e);
+                      return null;
+                    }
+                  },
+                  {},
+              ),
+            };
+          },
+      ).reduce(
+          async function(ret, cur) {
+            await ret;
+            if (cur) {
+              const {zip1, items} = cur;
+              return bucket.file(`simple/${zip1}.json`)
+                  .save(JSON.stringify(items));
+            }
+            return null;
+          },
+          Promise.resolve(),
+      );
 
   await saveMergedSimple(k);
   logger.info("merged: k_zips.json");
@@ -448,11 +464,18 @@ async function jigyosyo(firebase) {
       kana: rec[1],
     };
 
-    if (zips[rec[7]] && zips[rec[7]].items) {
-      zips[rec[7]].items.push(item);
-    } else {
-      zips[rec[7]] = {items: [item]};
+    const zip1 = rec[7].slice(0, 3);
+    const zip2 = rec[7].slice(3);
+
+    if (!zips[zip1]) {
+      zips[zip1] = {};
     }
+
+    if (!zips[zip1][zip2]) {
+      zips[zip1][zip2] = [];
+    }
+
+    zips[zip1][zip2].push(item);
   }
 
   await saveParsed(firebase, id, jisx0401s, jisx0402s, zips);

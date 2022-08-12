@@ -57,5 +57,5 @@ exports.kenAll = functions.region(region)
 
 exports.jigyosyo = functions.region(region)
     .runWith({timeoutSeconds, memory})
-    .pubsub.schedule("17 3 * * *").timeZone(timeZone)
+    .pubsub.schedule("27 3 * * *").timeZone(timeZone)
     .onRun(() => jigyosyo(firebase));

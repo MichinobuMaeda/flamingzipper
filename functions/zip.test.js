@@ -234,6 +234,10 @@ describe("jigyosyo", function() {
     const zips = JSON.parse(
         await readFile(path.join(pathData, "j_zips.json")),
     );
+    await writeFile(
+        path.join(pathTmp, "j_zips.json"),
+        mockBucketFileSave.mock.calls[3][0],
+    );
     expect(JSON.parse(mockBucketFileSave.mock.calls[1][0])).toEqual(jisx0401);
     expect(JSON.parse(mockBucketFileSave.mock.calls[2][0])).toEqual(jisx0402);
     expect(JSON.parse(mockBucketFileSave.mock.calls[3][0])).toEqual(zips);
