@@ -73,6 +73,13 @@ function createMockFirebase(jest) {
     update: jest.fn(),
   };
 
+  const mockBucketFileSave = jest.fn();
+  const mockBucketFile = jest.fn(function() {
+    return {
+      save: mockBucketFileSave,
+    };
+  });
+
   const firebase = {
     auth: mockAuth,
     db: {
@@ -82,11 +89,7 @@ function createMockFirebase(jest) {
       },
     },
     bucket: {
-      file: jest.fn(function() {
-        return {
-          save: jest.fn(),
-        };
-      }),
+      file: mockBucketFile,
     },
     logger: {
       log: jest.fn(),
@@ -105,6 +108,8 @@ function createMockFirebase(jest) {
     mockCollectionRef,
     mockCollection,
     mockBatch,
+    mockBucketFile,
+    mockBucketFileSave,
     firebase,
   };
 }
