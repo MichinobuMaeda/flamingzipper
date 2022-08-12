@@ -74,9 +74,13 @@ function createMockFirebase(jest) {
   };
 
   const mockBucketFileSave = jest.fn();
+  const mockBucketFileCopy = jest.fn();
+  const mockBucketFileExists = jest.fn();
   const mockBucketFile = jest.fn(function() {
     return {
       save: mockBucketFileSave,
+      copy: mockBucketFileCopy,
+      exists: mockBucketFileExists,
     };
   });
 
@@ -110,6 +114,8 @@ function createMockFirebase(jest) {
     mockBatch,
     mockBucketFile,
     mockBucketFileSave,
+    mockBucketFileCopy,
+    mockBucketFileExists,
     firebase,
   };
 }

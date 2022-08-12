@@ -1,4 +1,4 @@
-const {readFile} = require("node:fs/promises");
+const {readFile, writeFile} = require("node:fs/promises");
 const axios = require("axios");
 jest.mock("axios");
 const path = require("path");
@@ -18,9 +18,11 @@ const {
   mockQueryRef,
   mockBucketFile,
   mockBucketFileSave,
+  mockBucketFileExists,
 } = createMockFirebase(jest);
 
 const pathData = path.join(__dirname, "..", "test", "data");
+const pathTmp = path.join(__dirname, "..", "tmp");
 
 afterEach(async function() {
   jest.clearAllMocks();
@@ -83,6 +85,7 @@ describe("kenAll", function() {
     const sum = hashZip.digest("hex");
     doc1.data.mockReturnValue({page: "test", sum: "test"});
     mockQueryRef.get.mockResolvedValue({docs: [doc1]});
+    mockBucketFileExists.mockResolvedValue(false);
     axios.get
         .mockResolvedValueOnce({data: new TextEncoder().encode(pageData)})
         .mockResolvedValueOnce({data: zipData.buffer});
@@ -95,13 +98,23 @@ describe("kenAll", function() {
       [expect.stringContaining("saved: ")],
       ["unziped: KEN_ALL.CSV"],
       [expect.stringContaining("parsed: ")],
+      ["merged: jisx0401.json"],
+      ["merged: jisx0402.json"],
+      ["merged: k_zips.json"],
+      ["merged: j_zips.json"],
     ]);
 
-    expect(mockBucketFile.mock.calls).toEqual([
+    expect(mockBucketFile.mock.calls.slice(0, 10)).toEqual([
       [expect.stringMatching(/archives\/k[0-9]+.zip/)],
       [expect.stringMatching(/work\/k[0-9]+_jisx0401.json/)],
       [expect.stringMatching(/work\/k[0-9]+_jisx0402.json/)],
       [expect.stringMatching(/work\/k[0-9]+_zips.json/)],
+      [expect.stringMatching(/work\/k[0-9]+_jisx0401.json/)],
+      [expect.stringMatching(/work\/k_jisx0401.json/)],
+      [expect.stringMatching(/work\/k[0-9]+_jisx0402.json/)],
+      [expect.stringMatching(/work\/k_jisx0402.json/)],
+      [expect.stringMatching(/work\/k[0-9]+_zips.json/)],
+      [expect.stringMatching(/work\/k_zips.json/)],
     ]);
 
     const jisx0401 = JSON.parse(
@@ -112,6 +125,10 @@ describe("kenAll", function() {
     );
     const zips = JSON.parse(
         await readFile(path.join(pathData, "k_zips.json")),
+    );
+    await writeFile(
+        path.join(pathTmp, "k_zips.json"),
+        mockBucketFileSave.mock.calls[3][0],
     );
     expect(JSON.parse(mockBucketFileSave.mock.calls[1][0])).toEqual(jisx0401);
     expect(JSON.parse(mockBucketFileSave.mock.calls[2][0])).toEqual(jisx0402);
@@ -176,6 +193,7 @@ describe("jigyosyo", function() {
     const sum = hashZip.digest("hex");
     doc1.data.mockReturnValue({page: "test", sum: "test"});
     mockQueryRef.get.mockResolvedValue({docs: [doc1]});
+    mockBucketFileExists.mockResolvedValue(false);
     axios.get
         .mockResolvedValueOnce({data: new TextEncoder().encode(pageData)})
         .mockResolvedValueOnce({data: zipData.buffer});
@@ -188,13 +206,23 @@ describe("jigyosyo", function() {
       [expect.stringContaining("saved: ")],
       ["unziped: JIGYOSYO.CSV"],
       [expect.stringContaining("parsed: ")],
+      ["merged: jisx0401.json"],
+      ["merged: jisx0402.json"],
+      ["merged: k_zips.json"],
+      ["merged: j_zips.json"],
     ]);
 
-    expect(mockBucketFile.mock.calls).toEqual([
+    expect(mockBucketFile.mock.calls.slice(0, 10)).toEqual([
       [expect.stringMatching(/archives\/j[0-9]+.zip/)],
       [expect.stringMatching(/work\/j[0-9]+_jisx0401.json/)],
       [expect.stringMatching(/work\/j[0-9]+_jisx0402.json/)],
       [expect.stringMatching(/work\/j[0-9]+_zips.json/)],
+      [expect.stringMatching(/work\/j[0-9]+_jisx0401.json/)],
+      [expect.stringMatching(/work\/j_jisx0401.json/)],
+      [expect.stringMatching(/work\/j[0-9]+_jisx0402.json/)],
+      [expect.stringMatching(/work\/j_jisx0402.json/)],
+      [expect.stringMatching(/work\/j[0-9]+_zips.json/)],
+      [expect.stringMatching(/work\/j_zips.json/)],
     ]);
 
     const jisx0401 = JSON.parse(

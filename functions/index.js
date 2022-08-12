@@ -11,6 +11,7 @@ const {kenAll, jigyosyo} = require("./zip");
 const region = "asia-northeast2";
 const timeZone = "Asia/Tokyo";
 const timeoutSeconds = 540; // 9 min (max)
+const memory = "1GB";
 
 initializeApp();
 
@@ -50,11 +51,11 @@ exports.updateUserPassword = functions.region(region)
         });
 
 exports.kenAll = functions.region(region)
-    .runWith({timeoutSeconds})
+    .runWith({timeoutSeconds, memory})
     .pubsub.schedule("13 3 * * *").timeZone(timeZone)
     .onRun(() => kenAll(firebase));
 
 exports.jigyosyo = functions.region(region)
-    .runWith({timeoutSeconds})
+    .runWith({timeoutSeconds, memory})
     .pubsub.schedule("17 3 * * *").timeZone(timeZone)
     .onRun(() => jigyosyo(firebase));
