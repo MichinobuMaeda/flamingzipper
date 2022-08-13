@@ -98,10 +98,6 @@ describe("kenAll", function() {
       [expect.stringContaining("saved: ")],
       ["unziped: KEN_ALL.CSV"],
       [expect.stringContaining("parsed: ")],
-      ["merged: jisx0401.json"],
-      ["merged: jisx0402.json"],
-      ["merged: k_zips.json"],
-      ["merged: j_zips.json"],
     ]);
 
     expect(mockBucketFile.mock.calls.slice(0, 10)).toEqual([
@@ -206,10 +202,6 @@ describe("jigyosyo", function() {
       [expect.stringContaining("saved: ")],
       ["unziped: JIGYOSYO.CSV"],
       [expect.stringContaining("parsed: ")],
-      ["merged: jisx0401.json"],
-      ["merged: jisx0402.json"],
-      ["merged: k_zips.json"],
-      ["merged: j_zips.json"],
     ]);
 
     expect(mockBucketFile.mock.calls.slice(0, 10)).toEqual([
