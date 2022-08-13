@@ -429,8 +429,8 @@ async function mergeZips(firebase, prefix) {
                       let name = "";
 
                       [
-                        ...(k[zip1][zip2] || []),
-                        ...(j[zip1][zip2] || []),
+                        ...((k[zip1] || [])[zip2] || []),
+                        ...((j[zip1] || [])[zip2] || []),
                       ].forEach(
                           function(item, index) {
                             if (index === 0) {
