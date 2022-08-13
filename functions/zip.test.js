@@ -42,10 +42,7 @@ describe("kenAll", function() {
 
     await kenAll(firebase);
 
-    expect(firebase.logger.info.mock.calls).toEqual([
-      [page],
-      ["skip"],
-    ]);
+    expect(firebase.logger.info.mock.calls).toEqual([]);
   });
 
   it("ignores the zip with sum saved.", async function() {
@@ -54,7 +51,6 @@ describe("kenAll", function() {
     const zipData = await readFile("../test/data/ken_all_01.zip");
     const hashPage = createHash("sha256");
     hashPage.update(new TextEncoder().encode(pageData));
-    const page = hashPage.digest("hex");
     const hashZip = createHash("sha256");
     hashZip.update(zipData);
     const sum = hashZip.digest("hex");
@@ -66,11 +62,7 @@ describe("kenAll", function() {
 
     await kenAll(firebase);
 
-    expect(firebase.logger.info.mock.calls).toEqual([
-      [page],
-      [sum],
-      ["skip"],
-    ]);
+    expect(firebase.logger.info.mock.calls).toEqual([]);
   });
 
   it("gets new zip.", async function() {
@@ -79,7 +71,6 @@ describe("kenAll", function() {
     const zipData = await readFile("../test/data/ken_all_01.zip");
     const hashPage = createHash("sha256");
     hashPage.update(new TextEncoder().encode(pageData));
-    const page = hashPage.digest("hex");
     const hashZip = createHash("sha256");
     hashZip.update(zipData);
     const sum = hashZip.digest("hex");
@@ -93,14 +84,13 @@ describe("kenAll", function() {
     await kenAll(firebase);
 
     expect(firebase.logger.info.mock.calls).toEqual([
-      [page],
       [sum],
       [expect.stringContaining("saved: ")],
       ["unziped: KEN_ALL.CSV"],
       [expect.stringContaining("parsed: ")],
     ]);
 
-    expect(mockBucketFile.mock.calls.slice(0, 10)).toEqual([
+    expect(mockBucketFile.mock.calls).toEqual([
       [expect.stringMatching(/archives\/k[0-9]+.zip/)],
       [expect.stringMatching(/work\/k[0-9]+_jisx0401.json/)],
       [expect.stringMatching(/work\/k[0-9]+_jisx0402.json/)],
@@ -146,10 +136,7 @@ describe("jigyosyo", function() {
 
     await jigyosyo(firebase);
 
-    expect(firebase.logger.info.mock.calls).toEqual([
-      [page],
-      ["skip"],
-    ]);
+    expect(firebase.logger.info.mock.calls).toEqual([]);
   });
 
   it("ignores the zip with sum saved.", async function() {
@@ -158,7 +145,6 @@ describe("jigyosyo", function() {
     const zipData = await readFile("../test/data/jigyosyo_01.zip");
     const hashPage = createHash("sha256");
     hashPage.update(new TextEncoder().encode(pageData));
-    const page = hashPage.digest("hex");
     const hashZip = createHash("sha256");
     hashZip.update(zipData);
     const sum = hashZip.digest("hex");
@@ -170,11 +156,7 @@ describe("jigyosyo", function() {
 
     await jigyosyo(firebase);
 
-    expect(firebase.logger.info.mock.calls).toEqual([
-      [page],
-      [sum],
-      ["skip"],
-    ]);
+    expect(firebase.logger.info.mock.calls).toEqual([]);
   });
 
   it("gets new zip.", async function() {
@@ -183,7 +165,6 @@ describe("jigyosyo", function() {
     const zipData = await readFile("../test/data/jigyosyo_01.zip");
     const hashPage = createHash("sha256");
     hashPage.update(new TextEncoder().encode(pageData));
-    const page = hashPage.digest("hex");
     const hashZip = createHash("sha256");
     hashZip.update(zipData);
     const sum = hashZip.digest("hex");
@@ -197,14 +178,13 @@ describe("jigyosyo", function() {
     await jigyosyo(firebase);
 
     expect(firebase.logger.info.mock.calls).toEqual([
-      [page],
       [sum],
       [expect.stringContaining("saved: ")],
       ["unziped: JIGYOSYO.CSV"],
       [expect.stringContaining("parsed: ")],
     ]);
 
-    expect(mockBucketFile.mock.calls.slice(0, 10)).toEqual([
+    expect(mockBucketFile.mock.calls).toEqual([
       [expect.stringMatching(/archives\/j[0-9]+.zip/)],
       [expect.stringMatching(/work\/j[0-9]+_jisx0401.json/)],
       [expect.stringMatching(/work\/j[0-9]+_jisx0402.json/)],

@@ -112,4 +112,6 @@ $ npx firebase functions:config:set initial.email=*******
 $ npx firebase functions:config:set initial.password=*******
 $ npx firebase functions:config:set initial.url=https://flamingzipper.web.app/
 $ npx firebase deploy --only functions
+
+$ gsutil cors set cors.json gs://flamingzipper.appspot.com
 ````

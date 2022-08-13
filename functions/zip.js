@@ -29,10 +29,8 @@ async function fetchZip(firebase, type, pageUrl, zipUrl) {
   const hashPage = createHash("sha256");
   hashPage.update(Buffer.from(respPage.data));
   const page = hashPage.digest("hex");
-  logger.info(page);
 
   if (info.docs.length == 1 && info.docs[0].get("page") === page) {
-    logger.info("skip");
     return {};
   }
 
@@ -40,13 +38,12 @@ async function fetchZip(firebase, type, pageUrl, zipUrl) {
   const hashZip = createHash("sha256");
   hashZip.update(Buffer.from(respZip.data));
   const sum = hashZip.digest("hex");
-  logger.info(sum);
 
   if (info.docs.length == 1 && info.docs[0].get("sum") === sum) {
-    logger.info("skip");
     return {};
   }
 
+  logger.info(sum);
   const id = `${type}${ts.toISOString().replace(/[^0-9]/g, "")}`;
   await bucket.file(`archives/${id}.zip`).save(Buffer.from(respZip.data));
   await db.collection(COLLECTION_ZIP).doc(id)
