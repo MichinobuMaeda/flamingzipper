@@ -355,6 +355,8 @@ async function mergeJisx040x(firebase) {
         .filter((item) => !kJisx0401.some((comp) => comp.code === item.code)),
   ]));
 
+  await bucket.file("jisx0401.json").makePublic();
+
 
   logger.info("merged: jisx0401.json");
 
@@ -370,6 +372,8 @@ async function mergeJisx040x(firebase) {
     ...jJisx0402
         .filter((item) => !kJisx0402.some((comp) => comp.code === item.code)),
   ]));
+
+  await bucket.file("jisx0402.json").makePublic();
 
   logger.info("merged: jisx0402.json");
 
@@ -477,8 +481,9 @@ async function mergeZips(firebase, prefix) {
             await ret;
             if (cur) {
               const {zip1, items} = cur;
-              return bucket.file(`simple/${zip1}.json`)
-                  .save(JSON.stringify(items));
+              const file = bucket.file(`simple/${zip1}.json`);
+              await file.save(JSON.stringify(items));
+              await file.makePublic();
             }
             return null;
           },
