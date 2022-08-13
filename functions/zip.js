@@ -415,8 +415,8 @@ async function mergeZips(firebase, prefix) {
       .map(
           function(zip1) {
             const zip2s = mergeArrays(
-                Object.keys(k[zip1]),
-                Object.keys(j[zip1]),
+                Object.keys(k[zip1] || {}),
+                Object.keys(j[zip1] || {}),
             );
             return {
               zip1,
