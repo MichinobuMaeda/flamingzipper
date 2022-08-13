@@ -94,7 +94,9 @@ async function saveParsed(firebase, id, jisx0401s, jisx0402s, zips) {
       bucket.file(`work/${id.slice(0, 1)}_zips.json`),
   );
 
-  await db.collection(COLLECTION_ZIP).doc(id).update({parsedAt: new Date()});
+  await db.collection(COLLECTION_ZIP).doc(id).update({
+    parsedAt: new Date(),
+  });
 
   logger.info(`parsed: ${id}`);
 }
@@ -188,147 +190,11 @@ function generateZipRecord(zips, code, item) {
 }
 
 /**
- * Merge JIS X 0401 data of ken_all.zip and jigyosyo.zip
- * @param {Object} firebase Firebase API
- * @param {Array} k JIS X 0401 data of ken_all.zip
- * @param {Array} j JIS X 0401 data of jigyosyo.zip
- * @return {Promise} void
- */
-async function mergeJisx0401(firebase, k, j) {
-  const {bucket, logger} = firebase;
-  const merged = [
-    ...k,
-    ...j.filter((item) => !k.some((comp) => comp.code === item.code)),
-  ];
-  await bucket.file("jisx0401.json").save(JSON.stringify(merged));
-  logger.info("merged: jisx0401.json");
-  return merged;
-}
-
-/**
- * Merge JIS X 0402 data of ken_all.zip and jigyosyo.zip
- * @param {Object} firebase Firebase API
- * @param {Array} k JIS X 0402 data of ken_all.zip
- * @param {Array} j JIS X 0402 data of jigyosyo.zip
- * @return {Promise} void
- */
-async function mergeJisx0402(firebase, k, j) {
-  const {bucket, logger} = firebase;
-  const merged = [
-    ...k,
-    ...j.filter((item) => !k.some((comp) => comp.code === item.code)),
-  ];
-  await bucket.file("jisx0402.json").save(JSON.stringify(merged));
-  logger.info("merged: jisx0402.json");
-  return merged;
-}
-
-/**
- * Merge parsed zip data of ken_all.zip and jigyosyo.zip
- * @param {Object} firebase Firebase API
- * @param {Array} jisx0401s JIS X 0402
- * @param {Array} jisx0402s JIS X 0402
- * @param {Array} k Parsed zip data of ken_all.zip
- * @param {Array} j Parsed zip of jigyosyo.zip
- * @return {Promise} void
- */
-async function mergeZips(firebase, jisx0401s, jisx0402s, k, j) {
-  const {bucket, logger} = firebase;
-
-  const saveMergedSimple = (o) => Object.keys(o)
-      .map(
-          function(zip1) {
-            return {
-              zip1,
-              items: Object.keys(o[zip1]).reduce(
-                  function(ret, zip2) {
-                    try {
-                      let jisx0402 = "";
-                      let addr1 = "";
-                      let addr2 = "";
-                      let name = "";
-
-                      o[zip1][zip2].forEach(
-                          function(item, index) {
-                            if (index === 0) {
-                              jisx0402 = item.jisx0402 || "";
-                              addr1 = item.addr1 || "";
-                              addr2 = item.addr2 || "";
-                              name = item.name || "";
-                            } else {
-                              if (jisx0402 !== item.jisx0402) {
-                                jisx0402 = "";
-                              }
-                              if (addr1 !== item.addr1) {
-                                addr1 = "";
-                              }
-                              if (addr2 !== item.addr2) {
-                                addr2 = "";
-                              }
-                              if (name !== item.name) {
-                                name = "";
-                              }
-                            }
-                          },
-                      );
-
-                      const pref = (jisx0401s.find(
-                          (item) => item.code === jisx0402.slice(0, 2),
-                      ) || {name: ""}).name;
-                      const city = (jisx0402s.find(
-                          (item) => item.code === jisx0402,
-                      ) || {name: ""}).name;
-
-                      return {...ret, [zip2]: {pref, city, addr1, addr2, name}};
-                    } catch (e) {
-                      logger.error(e);
-                      return null;
-                    }
-                  },
-                  {},
-              ),
-            };
-          },
-      ).reduce(
-          async function(ret, cur) {
-            await ret;
-            if (cur) {
-              const {zip1, items} = cur;
-              return bucket.file(`simple/${zip1}.json`)
-                  .save(JSON.stringify(items));
-            }
-            return null;
-          },
-          Promise.resolve(),
-      );
-
-  await saveMergedSimple(k);
-  logger.info("merged: k_zips.json");
-  await saveMergedSimple(j);
-  logger.info("merged: j_zips.json");
-}
-
-/**
- * Get the JSON content of the file at given path of given bucket.
- * @param {Object} bucket
- * @param {string} path
- * @return {any} content
- */
-async function getJsonContent(bucket, path) {
-  try {
-    return JSON.parse(await bucket.file(path).download());
-  } catch (e) {
-    return null;
-  }
-}
-
-/**
  * Get and parse ken_all.zip
  * @param {Object} firebase Firebase API
  * @return {Promise} void
  */
 async function kenAll(firebase) {
-  const {db, bucket} = firebase;
   const {id, csvReader} = await fetchZip(
       firebase, "k", URL_K_PAGE, URL_K_ZIP,
   );
@@ -395,26 +261,6 @@ async function kenAll(firebase) {
   }
 
   await saveParsed(firebase, id, jisx0401s, jisx0402s, zips);
-
-  const mergedJisx0401 = await mergeJisx0401(
-      firebase,
-      jisx0401s,
-      await getJsonContent(bucket, "work/j_jisx0401.json") || [],
-  );
-  const mergedJisx0402 = await mergeJisx0402(
-      firebase,
-      jisx0402s,
-      await getJsonContent(bucket, "work/j_jisx0402.json") || [],
-  );
-  await mergeZips(
-      firebase,
-      mergedJisx0401,
-      mergedJisx0402,
-      zips,
-      await getJsonContent(bucket, "work/j_zips.json") || [],
-  );
-
-  await db.collection(COLLECTION_ZIP).doc(id).update({mergedAt: new Date()});
 }
 
 /**
@@ -423,7 +269,6 @@ async function kenAll(firebase) {
  * @return {Promise} void
  */
 async function jigyosyo(firebase) {
-  const {db, bucket} = firebase;
   const {id, csvReader} = await fetchZip(
       firebase, "j", URL_J_PAGE, URL_J_ZIP,
   );
@@ -479,29 +324,177 @@ async function jigyosyo(firebase) {
   }
 
   await saveParsed(firebase, id, jisx0401s, jisx0402s, zips);
+}
 
-  const mergedJisx0401 = await mergeJisx0401(
-      firebase,
-      await getJsonContent(bucket, "work/k_jisx0401.json") || [],
-      jisx0401s,
+/**
+ * Merge JIS X 0401 and 0402 of ken_all and jigyosyo.zip
+ * @param {Object} firebase Firebase API
+ * @return {Promise} void
+ */
+async function mergeJisx040x(firebase) {
+  const {db, bucket, logger} = firebase;
+
+  const info = await db.collection(COLLECTION_ZIP)
+      .orderBy("parsedAt", "desc")
+      .limit(1).get();
+
+  if (!info.docs || info.docs[0].get("mergedJisx040xAt")) {
+    return;
+  }
+
+  const kJisx0401 = await JSON.parse(
+      await bucket.file("work/k_jisx0401.json").download(),
   );
-  const mergedJisx0402 = await mergeJisx0402(
-      firebase,
-      await getJsonContent(bucket, "work/k_jisx0402.json") || [],
-      jisx0402s,
-  );
-  await mergeZips(
-      firebase,
-      mergedJisx0401,
-      mergedJisx0402,
-      await getJsonContent(bucket, "work/k_zips.json") || [],
-      zips,
+  const jJisx0401 = await JSON.parse(
+      await bucket.file("work/j_jisx0401.json").download(),
   );
 
-  await db.collection(COLLECTION_ZIP).doc(id).update({mergedAt: new Date()});
+  await bucket.file("jisx0401.json").save(JSON.stringify([
+    ...kJisx0401,
+    ...jJisx0401
+        .filter((item) => !kJisx0401.some((comp) => comp.code === item.code)),
+  ]));
+
+
+  logger.info("merged: jisx0401.json");
+
+  const kJisx0402 = await JSON.parse(
+      await bucket.file("work/k_jisx0402.json").download(),
+  );
+  const jJisx0402 = await JSON.parse(
+      await bucket.file("work/j_jisx0402.json").download(),
+  );
+
+  await bucket.file("jisx0402.json").save(JSON.stringify([
+    ...kJisx0402,
+    ...jJisx0402
+        .filter((item) => !kJisx0402.some((comp) => comp.code === item.code)),
+  ]));
+
+  logger.info("merged: jisx0402.json");
+
+  await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
+    mergedJisx040xAt: new Date(),
+  });
+}
+
+/**
+ * Merge data of ken_all and jigyosyo.zip
+ * @param {Object} firebase Firebase API
+ * @param {String} prefix prefix of zip code of target
+ * @return {Promise} void
+ */
+async function mergeZips(firebase, prefix) {
+  const {db, bucket, logger} = firebase;
+
+  const info = await db.collection(COLLECTION_ZIP)
+      .orderBy("mergedJisx040xAt", "desc")
+      .limit(1).get();
+
+  if (!info.docs || info.docs[0].get(`mergedSimpleZips${prefix}At`)) {
+    return;
+  }
+
+  const jisx0401s = await JSON.parse(
+      await bucket.file("jisx0401.json").download(),
+  );
+  const jisx0402s = await JSON.parse(
+      await bucket.file("jisx0402.json").download(),
+  );
+  const k = await JSON.parse(
+      await bucket.file("work/k_zips.json").download(),
+  );
+  const j = await JSON.parse(
+      await bucket.file("work/j_zips.json").download(),
+  );
+
+  const mergeArrays = (a, b) => [...a, ...b.filter((i) => !a.includes(i))];
+
+  await mergeArrays(Object.keys(k), Object.keys(j))
+      .filter((zip1) => zip1.startsWith(prefix))
+      .map(
+          function(zip1) {
+            const zip2s = mergeArrays(
+                Object.keys(k[zip1]),
+                Object.keys(j[zip1]),
+            );
+            return {
+              zip1,
+              items: zip2s.reduce(
+                  function(ret, zip2) {
+                    try {
+                      let jisx0402 = "";
+                      let addr1 = "";
+                      let addr2 = "";
+                      let name = "";
+
+                      [
+                        ...(k[zip1][zip2] || []),
+                        ...(j[zip1][zip2] || []),
+                      ].forEach(
+                          function(item, index) {
+                            if (index === 0) {
+                              jisx0402 = item.jisx0402 || "";
+                              addr1 = item.addr1 || "";
+                              addr2 = item.addr2 || "";
+                              name = item.name || "";
+                            } else {
+                              if (jisx0402 !== item.jisx0402) {
+                                jisx0402 = "";
+                              }
+                              if (addr1 !== item.addr1) {
+                                addr1 = "";
+                              }
+                              if (addr2 !== item.addr2) {
+                                addr2 = "";
+                              }
+                              if (name !== item.name) {
+                                name = "";
+                              }
+                            }
+                          },
+                      );
+
+                      const pref = (jisx0401s.find(
+                          (item) => item.code === jisx0402.slice(0, 2),
+                      ) || {name: ""}).name;
+                      const city = (jisx0402s.find(
+                          (item) => item.code === jisx0402,
+                      ) || {name: ""}).name;
+
+                      return {...ret, [zip2]: {pref, city, addr1, addr2, name}};
+                    } catch (e) {
+                      logger.error(e);
+                      return null;
+                    }
+                  },
+                  {},
+              ),
+            };
+          },
+      ).reduce(
+          async function(ret, cur) {
+            await ret;
+            if (cur) {
+              const {zip1, items} = cur;
+              return bucket.file(`simple/${zip1}.json`)
+                  .save(JSON.stringify(items));
+            }
+            return null;
+          },
+          Promise.resolve(),
+      );
+
+  logger.info(`merged: simple/${prefix}*.json`);
+
+  await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
+    [`mergedSimpleZips${prefix}At`]: new Date(),
+  });
 }
 
 module.exports = {
   kenAll,
   jigyosyo,
+  mergeJisx040x,
+  mergeZips,
 };

@@ -6,12 +6,11 @@ const {getStorage} = require("firebase-admin/storage");
 const deployment = require("./deployment");
 const {requireAdminAccount} = require("./guard");
 const accounts = require("./accounts");
-const {kenAll, jigyosyo} = require("./zip");
+const {kenAll, jigyosyo, mergeJisx040x, mergeZips} = require("./zip");
 
 const region = "asia-northeast2";
 const timeZone = "Asia/Tokyo";
-const timeoutSeconds = 540; // 9 min (max)
-const memory = "1GB";
+const timeoutSeconds = 300;
 
 initializeApp();
 
@@ -51,11 +50,66 @@ exports.updateUserPassword = functions.region(region)
         });
 
 exports.kenAll = functions.region(region)
-    .runWith({timeoutSeconds, memory})
-    .pubsub.schedule("13 3 * * *").timeZone(timeZone)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("11 3 * * *").timeZone(timeZone)
     .onRun(() => kenAll(firebase));
 
 exports.jigyosyo = functions.region(region)
-    .runWith({timeoutSeconds, memory})
-    .pubsub.schedule("27 3 * * *").timeZone(timeZone)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("11 3 * * *").timeZone(timeZone)
     .onRun(() => jigyosyo(firebase));
+
+exports.mergeJisx040x = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("17 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeJisx040x(firebase));
+
+exports.mergeZips0 = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeZips(firebase, "0"));
+
+exports.mergeZips1 = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeZips(firebase, "1"));
+
+exports.mergeZips2 = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeZips(firebase, "2"));
+
+exports.mergeZips3 = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeZips(firebase, "3"));
+
+exports.mergeZips4 = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeZips(firebase, "4"));
+
+exports.mergeZips5 = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeZips(firebase, "5"));
+
+exports.mergeZips6 = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeZips(firebase, "6"));
+
+exports.mergeZips7 = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeZips(firebase, "7"));
+
+exports.mergeZips8 = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeZips(firebase, "8"));
+
+exports.mergeZips9 = functions.region(region)
+    .runWith({timeoutSeconds})
+    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
+    .onRun(() => mergeZips(firebase, "9"));
