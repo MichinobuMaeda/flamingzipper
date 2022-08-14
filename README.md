@@ -5,6 +5,21 @@
 - git
 - fvm
 - nvm
+- JDK >= 11 for Firebase emulator
+
+## Build
+
+```
+$ git clone git@github.com:MichinobuMaeda/flamingzipper.git
+$ cd flamingzipper
+$ nvm use
+$ cd functions
+$ npm install
+$ cd ..
+$ npm instal
+$ fvm flutter pug get
+$ npm start
+```
 
 ## Create this project
 
