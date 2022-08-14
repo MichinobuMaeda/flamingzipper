@@ -76,7 +76,8 @@ URL: https://storage.googleapis.com/flamingzipper.appspot.com/simple/[3桁].json
 
 ★提供準備中
 
-簡易版の内容を郵便番号1件を1個のJSONファイルにし、ZIPファイルにまとめたものです。
+簡易版の内容を、1個のJSONファイルに郵便番号1件を格納する形として、すべてのJSONファイルをZIPファイルにまとめたものです。
+このZIPファイルを取得し解凍したものを、Webサイトに置いて利用することを想定しています。
 
 例: `0600000.json`
 
