@@ -123,6 +123,14 @@ describe("mergeZips0 -> 9", function() {
   });
 });
 
+describe("mergeSimpleZipsAll", function() {
+  it("calls mergeSimpleZipsAll()", function() {
+    const wrapped = test.wrap(index.mergeSimpleZipsAll);
+    wrapped();
+    expect(zip.mergeSimpleZipsAll.mock.calls).toHaveLength(1);
+  });
+});
+
 describe("archiveSimpleZips", function() {
   it("calls archiveSimpleZips()", function() {
     const wrapped = test.wrap(index.archiveSimpleZips);

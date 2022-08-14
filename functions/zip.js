@@ -472,6 +472,13 @@ function reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j) {
   };
 }
 
+const margeSource = async (bucket) => ({
+  jisx0401s: JSON.parse(await bucket.file("jisx0401.json").download()),
+  jisx0402s: JSON.parse(await bucket.file("jisx0402.json").download()),
+  k: JSON.parse(await bucket.file("work/k_zips.json").download()),
+  j: JSON.parse(await bucket.file("work/j_zips.json").download()),
+});
+
 /**
  * Merge data of ken_all and jigyosyo.zip.
  * @param {Object} firebase Firebase API
@@ -489,18 +496,7 @@ async function mergeSimpleZips(firebase, prefix) {
     return;
   }
 
-  const jisx0401s = await JSON.parse(
-      await bucket.file("jisx0401.json").download(),
-  );
-  const jisx0402s = await JSON.parse(
-      await bucket.file("jisx0402.json").download(),
-  );
-  const k = await JSON.parse(
-      await bucket.file("work/k_zips.json").download(),
-  );
-  const j = await JSON.parse(
-      await bucket.file("work/j_zips.json").download(),
-  );
+  const {jisx0401s, jisx0402s, k, j} = await margeSource(bucket);
 
   await mergeArrays(Object.keys(k), Object.keys(j))
       .filter((zip1) => zip1.startsWith(prefix))
@@ -542,18 +538,7 @@ async function archiveSimpleZips(firebase) {
     return;
   }
 
-  const jisx0401s = await JSON.parse(
-      await bucket.file("jisx0401.json").download(),
-  );
-  const jisx0402s = await JSON.parse(
-      await bucket.file("jisx0402.json").download(),
-  );
-  const k = await JSON.parse(
-      await bucket.file("work/k_zips.json").download(),
-  );
-  const j = await JSON.parse(
-      await bucket.file("work/j_zips.json").download(),
-  );
+  const {jisx0401s, jisx0402s, k, j} = await margeSource(bucket);
 
   const zip = new JSZip();
 
@@ -583,10 +568,53 @@ async function archiveSimpleZips(firebase) {
   });
 }
 
+/**
+ * Merge data of ken_all and jigyosyo.zip and create an archive.
+ * @param {Object} firebase Firebase API
+ * @return {Promise} void
+ */
+async function mergeSimpleZipsAll(firebase) {
+  const {db, bucket, logger} = firebase;
+
+  const info = await db.collection(COLLECTION_ZIP)
+      .orderBy("mergedJisx040xAt", "desc")
+      .limit(1).get();
+
+  if (!info.docs || info.docs[0].get("mergeSimpleZipsAllAt")) {
+    return;
+  }
+
+  const {jisx0401s, jisx0402s, k, j} = await margeSource(bucket);
+
+  const json = [];
+
+  mergeArrays(Object.keys(k), Object.keys(j))
+      .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
+      .forEach(
+          function({zip1, items}) {
+            Object.keys(items).forEach(
+                function(zip2) {
+                  json.push({zip: `${zip1}${zip2}`, ...items[zip2]});
+                },
+            );
+          },
+      );
+
+  const file = bucket.file("simple.json");
+  await file.save(JSON.stringify(json));
+
+  logger.info("save: simple.json");
+
+  await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
+    mergeSimpleZipsAllAt: new Date(),
+  });
+}
+
 module.exports = {
   kenAll,
   jigyosyo,
   mergeJisx040x,
   mergeSimpleZips,
+  mergeSimpleZipsAll,
   archiveSimpleZips,
 };

@@ -13,6 +13,7 @@ const {
   jigyosyo,
   mergeJisx040x,
   mergeSimpleZips,
+  mergeSimpleZipsAll,
   archiveSimpleZips,
 } = require("./zip");
 
@@ -415,6 +416,41 @@ describe("mergeZips", function() {
     expect(output).toEqual(
         JSON.parse(await readFile(path.join(pathData, "simple.json"))),
     );
+  });
+});
+
+describe("mergeSimpleZipsAll", function() {
+  it("ignores merged data.", async function() {
+    doc1.data.mockReturnValue({archiveSimpleZipsAt: new Date()});
+    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
+
+    await archiveSimpleZips(firebase);
+
+    expect(firebase.logger.info.mock.calls).toEqual([]);
+  });
+
+  it("merges unmerged work/[k|j]_zips.json to simpe.json", async function() {
+    doc1.data.mockReturnValueOnce({});
+    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
+    mockBucketFileDownload
+        .mockReturnValueOnce(
+            readFile(path.join(pathData, "jisx0401.json")),
+        )
+        .mockReturnValueOnce(
+            readFile(path.join(pathData, "jisx0402.json")),
+        )
+        .mockReturnValueOnce(
+            readFile(path.join(pathData, "k_zips.json")),
+        )
+        .mockReturnValueOnce(
+            readFile(path.join(pathData, "j_zips.json")),
+        );
+
+    await mergeSimpleZipsAll(firebase);
+
+    expect(firebase.logger.info.mock.calls).toEqual([
+      ["save: simple.json"],
+    ]);
   });
 });
 
