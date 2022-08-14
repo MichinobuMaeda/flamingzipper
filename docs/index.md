@@ -107,7 +107,7 @@ JIS X 0401 に準拠する都道府県コードです。
 
 URL: <https://storage.googleapis.com/flamingzipper.appspot.com/jisx0402.json>
 
-JIS X 0402 に準拠する自治体コードのうち、郵便番号データに含まれるものです。
+JIS X 0402 に準拠する全国地方公共団体コードのうち、郵便番号データに含まれるものです。
 
 ```
 [
