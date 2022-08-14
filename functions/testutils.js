@@ -56,6 +56,9 @@ function createMockFirebase(jest) {
   const mockCollectionRef = {
     doc: mockDoc,
     add: jest.fn(),
+    orderBy: jest.fn(function() {
+      return mockQueryRef;
+    }),
     where: jest.fn(function() {
       return mockQueryRef;
     }),
@@ -76,11 +79,15 @@ function createMockFirebase(jest) {
   const mockBucketFileSave = jest.fn();
   const mockBucketFileCopy = jest.fn();
   const mockBucketFileExists = jest.fn();
+  const mockBucketFileDownload = jest.fn();
+  const mockBucketFileMakePublic = jest.fn();
   const mockBucketFile = jest.fn(function() {
     return {
       save: mockBucketFileSave,
       copy: mockBucketFileCopy,
       exists: mockBucketFileExists,
+      download: mockBucketFileDownload,
+      makePublic: mockBucketFileMakePublic,
     };
   });
 
@@ -116,6 +123,8 @@ function createMockFirebase(jest) {
     mockBucketFileSave,
     mockBucketFileCopy,
     mockBucketFileExists,
+    mockBucketFileDownload,
+    mockBucketFileMakePublic,
     firebase,
   };
 }

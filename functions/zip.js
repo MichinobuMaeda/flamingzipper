@@ -1,4 +1,4 @@
-const yauzl = require("yauzl-promise");
+const JSZip = require("jszip");
 const iconv = require("iconv-lite");
 const axios = require("axios");
 const {parse} = require("csv-parse");
@@ -50,13 +50,13 @@ async function fetchZip(firebase, type, pageUrl, zipUrl) {
       .set({type, page, sum, createdAt: ts});
   logger.info(`saved: ${id}`);
 
-  const zipFile = await yauzl.fromBuffer(
-      Buffer.from(respZip.data),
-      {lazyEntries: true},
-  );
-  const entry = await zipFile.readEntry();
-  logger.info(`unziped: ${entry.fileName}`);
-  const readStream = await entry.openReadStream();
+  const zip = new JSZip();
+  await zip.loadAsync(respZip.data);
+  const entry = zip.filter(function(relativePath, file) {
+    return relativePath.match(/\.CSV$/i) && !file.dir;
+  })[0];
+  logger.info(`unziped: ${entry.name}`);
+  const readStream = entry.nodeStream();
   const textReader = iconv.decodeStream("Shift_JIS");
   const csvReader = parse();
   textReader.pipe(csvReader);
@@ -107,6 +107,7 @@ async function saveParsed(firebase, id, jisx0401s, jisx0402s, zips) {
 function generateZipRecord(zips, code, item) {
   if (
     item.addr1.match(/^以下に/) ||
+    item.addr1.match(/場合$/) ||
     item.addr1.match(/一円$/) ||
     item.addr1.match(/～/)
   ) {
@@ -119,13 +120,15 @@ function generateZipRecord(zips, code, item) {
     item.addr2.match(/・/)||
     item.addr2.match(/「/)||
     item.addr2.match(/」/) ||
-    item.addr2.match(/階層不明/) ||
-    item.addr2.match(/除く/) ||
-    item.addr2.match(/以外/) ||
-    item.addr2.match(/以上/) ||
-    item.addr2.match(/以内/) ||
-    item.addr2.match(/を含む/) ||
-    item.addr2.match(/その他/) ||
+    item.addr2.match(/階層不明$/) ||
+    item.addr2.match(/を除く/) ||
+    item.addr2.match(/以外$/) ||
+    item.addr2.match(/以上$/) ||
+    item.addr2.match(/以下$/) ||
+    item.addr2.match(/以内$/) ||
+    item.addr2.match(/以降$/) ||
+    item.addr2.match(/を含む$/) ||
+    item.addr2.match(/その他$/) ||
     item.addr2.match(/○○/) ||
     item.addr2.match(
         /^[^０１２３４５６７８９－、]+[０１２３４５６７８９－、]+、[０１２３４５６７８９－、]+[^０１２３４５６７８９－、]+/,
@@ -138,6 +141,11 @@ function generateZipRecord(zips, code, item) {
     item.addr2 === "大字"
   ) {
     item.note = item.addr2;
+    item.addr2 = "";
+  }
+
+  if (item.addr1 === "" && item.addr2 !== "") {
+    item.addr1 = item.addr2;
     item.addr2 = "";
   }
 
@@ -385,14 +393,14 @@ async function mergeJisx040x(firebase) {
  * @param {String} prefix prefix of zip code of target
  * @return {Promise} void
  */
-async function mergeZips(firebase, prefix) {
+async function mergeSimpleZips(firebase, prefix) {
   const {db, bucket, logger} = firebase;
 
   const info = await db.collection(COLLECTION_ZIP)
       .orderBy("mergedJisx040xAt", "desc")
       .limit(1).get();
 
-  if (!info.docs || info.docs[0].get(`mergedSimpleZips${prefix}At`)) {
+  if (!info.docs || info.docs[0].get(`mergeSimpleZips${prefix}At`)) {
     return;
   }
 
@@ -444,7 +452,11 @@ async function mergeZips(firebase, prefix) {
                                 jisx0402 = "";
                               }
                               if (addr1 !== item.addr1) {
-                                addr1 = "";
+                                if (addr1.startsWith(item.addr1)) {
+                                  addr1 = item.addr1;
+                                } else if (!item.addr1.startsWith(addr1)) {
+                                  addr1 = "";
+                                }
                               }
                               if (addr2 !== item.addr2) {
                                 addr2 = "";
@@ -466,6 +478,7 @@ async function mergeZips(firebase, prefix) {
                       return {...ret, [zip2]: {pref, city, addr1, addr2, name}};
                     } catch (e) {
                       logger.error(e);
+                      console.error(e);
                       return null;
                     }
                   },
@@ -487,10 +500,10 @@ async function mergeZips(firebase, prefix) {
           Promise.resolve(),
       );
 
-  logger.info(`merged: simple/${prefix}*.json`);
+  logger.info(`merged: simple/${prefix}??.json`);
 
   await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
-    [`mergedSimpleZips${prefix}At`]: new Date(),
+    [`mergeSimpleZips${prefix}At`]: new Date(),
   });
 }
 
@@ -498,5 +511,5 @@ module.exports = {
   kenAll,
   jigyosyo,
   mergeJisx040x,
-  mergeZips,
+  mergeSimpleZips,
 };

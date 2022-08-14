@@ -97,3 +97,28 @@ describe("jigyosyo", function() {
     expect(zip.jigyosyo.mock.calls).toHaveLength(1);
   });
 });
+
+describe("mergeJisx040x", function() {
+  it("calls mergeJisx040x()", function() {
+    const wrapped = test.wrap(index.mergeJisx040x);
+    wrapped();
+    expect(zip.mergeJisx040x.mock.calls).toHaveLength(1);
+  });
+});
+
+describe("mergeZips0 -> 9", function() {
+  it("calls mergeZips0() -> 9() with prefix '0' -> '9'", function() {
+    Array.from(Array(10).keys()).forEach(
+        function(n) {
+          const wrapped = test.wrap(index[`mergeSimpleZips${n}`]);
+          wrapped();
+        },
+    );
+    expect(zip.mergeSimpleZips.mock.calls).toHaveLength(10);
+    Array.from(Array(10).keys()).forEach(
+        function(n) {
+          expect(zip.mergeSimpleZips.mock.calls[n][1]).toEqual(`${n}`);
+        },
+    );
+  });
+});
