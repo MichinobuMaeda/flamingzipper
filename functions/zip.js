@@ -388,7 +388,92 @@ async function mergeJisx040x(firebase) {
 }
 
 /**
- * Merge data of ken_all and jigyosyo.zip
+ * Merge arrays to the array of unique values。
+ * @param {Array} a
+ * @param {Array} b
+ * @return {Array}
+ */
+function mergeArrays(a, b) {
+  return [...a, ...b.filter((i) => !a.includes(i))];
+}
+
+/**
+ * Generate function to reduce data par zip2
+ * @param {Object} logger
+ * @param {Array} jisx0401s
+ * @param {Array} jisx0402s
+ * @param {Object} k
+ * @param {Object} j
+ * @return {function}
+ */
+function reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j) {
+  return function(zip1) {
+    const zip2s = mergeArrays(
+        Object.keys(k[zip1] || {}),
+        Object.keys(j[zip1] || {}),
+    );
+    return {
+      zip1,
+      items: zip2s.reduce(
+          function(ret, zip2) {
+            try {
+              let jisx0402 = "";
+              let addr1 = "";
+              let addr2 = "";
+              let name = "";
+
+              [
+                ...((k[zip1] || [])[zip2] || []),
+                ...((j[zip1] || [])[zip2] || []),
+              ].forEach(
+                  function(item, index) {
+                    if (index === 0) {
+                      jisx0402 = item.jisx0402 || "";
+                      addr1 = item.addr1 || "";
+                      addr2 = item.addr2 || "";
+                      name = item.name || "";
+                    } else {
+                      if (jisx0402 !== item.jisx0402) {
+                        jisx0402 = "";
+                      }
+                      if (addr1 !== item.addr1) {
+                        if (addr1.startsWith(item.addr1)) {
+                          addr1 = item.addr1;
+                        } else if (!item.addr1.startsWith(addr1)) {
+                          addr1 = "";
+                        }
+                      }
+                      if (addr2 !== item.addr2) {
+                        addr2 = "";
+                      }
+                      if (name !== item.name) {
+                        name = "";
+                      }
+                    }
+                  },
+              );
+
+              const pref = (jisx0401s.find(
+                  (item) => item.code === jisx0402.slice(0, 2),
+              ) || {name: ""}).name;
+              const city = (jisx0402s.find(
+                  (item) => item.code === jisx0402,
+              ) || {name: ""}).name;
+
+              return {...ret, [zip2]: {pref, city, addr1, addr2, name}};
+            } catch (e) {
+              logger.error(e);
+              return null;
+            }
+          },
+          {},
+      ),
+    };
+  };
+}
+
+/**
+ * Merge data of ken_all and jigyosyo.zip.
  * @param {Object} firebase Firebase API
  * @param {String} prefix prefix of zip code of target
  * @return {Promise} void
@@ -417,76 +502,10 @@ async function mergeSimpleZips(firebase, prefix) {
       await bucket.file("work/j_zips.json").download(),
   );
 
-  const mergeArrays = (a, b) => [...a, ...b.filter((i) => !a.includes(i))];
-
   await mergeArrays(Object.keys(k), Object.keys(j))
       .filter((zip1) => zip1.startsWith(prefix))
-      .map(
-          function(zip1) {
-            const zip2s = mergeArrays(
-                Object.keys(k[zip1] || {}),
-                Object.keys(j[zip1] || {}),
-            );
-            return {
-              zip1,
-              items: zip2s.reduce(
-                  function(ret, zip2) {
-                    try {
-                      let jisx0402 = "";
-                      let addr1 = "";
-                      let addr2 = "";
-                      let name = "";
-
-                      [
-                        ...((k[zip1] || [])[zip2] || []),
-                        ...((j[zip1] || [])[zip2] || []),
-                      ].forEach(
-                          function(item, index) {
-                            if (index === 0) {
-                              jisx0402 = item.jisx0402 || "";
-                              addr1 = item.addr1 || "";
-                              addr2 = item.addr2 || "";
-                              name = item.name || "";
-                            } else {
-                              if (jisx0402 !== item.jisx0402) {
-                                jisx0402 = "";
-                              }
-                              if (addr1 !== item.addr1) {
-                                if (addr1.startsWith(item.addr1)) {
-                                  addr1 = item.addr1;
-                                } else if (!item.addr1.startsWith(addr1)) {
-                                  addr1 = "";
-                                }
-                              }
-                              if (addr2 !== item.addr2) {
-                                addr2 = "";
-                              }
-                              if (name !== item.name) {
-                                name = "";
-                              }
-                            }
-                          },
-                      );
-
-                      const pref = (jisx0401s.find(
-                          (item) => item.code === jisx0402.slice(0, 2),
-                      ) || {name: ""}).name;
-                      const city = (jisx0402s.find(
-                          (item) => item.code === jisx0402,
-                      ) || {name: ""}).name;
-
-                      return {...ret, [zip2]: {pref, city, addr1, addr2, name}};
-                    } catch (e) {
-                      logger.error(e);
-                      console.error(e);
-                      return null;
-                    }
-                  },
-                  {},
-              ),
-            };
-          },
-      ).reduce(
+      .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
+      .reduce(
           async function(ret, cur) {
             await ret;
             if (cur) {
@@ -507,9 +526,67 @@ async function mergeSimpleZips(firebase, prefix) {
   });
 }
 
+/**
+ * Merge data of ken_all and jigyosyo.zip and create an archive.
+ * @param {Object} firebase Firebase API
+ * @return {Promise} void
+ */
+async function archiveSimpleZips(firebase) {
+  const {db, bucket, logger} = firebase;
+
+  const info = await db.collection(COLLECTION_ZIP)
+      .orderBy("mergedJisx040xAt", "desc")
+      .limit(1).get();
+
+  if (!info.docs || info.docs[0].get("archiveSimpleZipsAt")) {
+    return;
+  }
+
+  const jisx0401s = await JSON.parse(
+      await bucket.file("jisx0401.json").download(),
+  );
+  const jisx0402s = await JSON.parse(
+      await bucket.file("jisx0402.json").download(),
+  );
+  const k = await JSON.parse(
+      await bucket.file("work/k_zips.json").download(),
+  );
+  const j = await JSON.parse(
+      await bucket.file("work/j_zips.json").download(),
+  );
+
+  const zip = new JSZip();
+
+  mergeArrays(Object.keys(k), Object.keys(j))
+      .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
+      .forEach(
+          function({zip1, items}) {
+            Object.keys(items).forEach(
+                function(zip2) {
+                  zip.file(
+                      `${zip1}${zip2}.json`,
+                      JSON.stringify(items[zip2]),
+                  );
+                },
+            );
+          },
+      );
+
+  const zipData = await zip.generateAsync({type: "uint8array"});
+  const file = bucket.file("simple.zip");
+  await file.save(zipData);
+
+  logger.info("save: simple.zip");
+
+  await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
+    archiveSimpleZipsAt: new Date(),
+  });
+}
+
 module.exports = {
   kenAll,
   jigyosyo,
   mergeJisx040x,
   mergeSimpleZips,
+  archiveSimpleZips,
 };

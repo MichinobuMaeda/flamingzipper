@@ -122,3 +122,11 @@ describe("mergeZips0 -> 9", function() {
     );
   });
 });
+
+describe("archiveSimpleZips", function() {
+  it("calls archiveSimpleZips()", function() {
+    const wrapped = test.wrap(index.archiveSimpleZips);
+    wrapped();
+    expect(zip.archiveSimpleZips.mock.calls).toHaveLength(1);
+  });
+});
