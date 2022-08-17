@@ -2,6 +2,7 @@ const JSZip = require("jszip");
 const iconv = require("iconv-lite");
 const axios = require("axios");
 const {parse} = require("csv-parse");
+const {stringify} =require( "csv-stringify/sync");
 
 const URL_K_PAGE = "https://www.post.japanpost.jp/zipcode/dl/kogaki-zip.html";
 const URL_K_ZIP = "https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip";
@@ -522,25 +523,72 @@ async function mergeSimpleZips(firebase, prefix) {
   });
 }
 
+// /**
+//  * Merge data of ken_all and jigyosyo.zip and create an archive.
+//  * @param {Object} firebase Firebase API
+//  * @return {Promise} void
+//  */
+// async function archiveSimpleZips(firebase) {
+//   const {db, bucket, logger} = firebase;
+
+//   const info = await db.collection(COLLECTION_ZIP)
+//       .orderBy("mergedJisx040xAt", "desc")
+//       .limit(1).get();
+
+//   if (!info.docs || info.docs[0].get("archiveSimpleZipsAt")) {
+//     return;
+//   }
+
+//   const {jisx0401s, jisx0402s, k, j} = await margeSource(bucket);
+
+//   const zip = new JSZip();
+
+//   mergeArrays(Object.keys(k), Object.keys(j))
+//       .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
+//       .forEach(
+//           function({zip1, items}) {
+//             Object.keys(items).forEach(
+//                 function(zip2) {
+//                   zip.file(
+//                       `${zip1}${zip2}.json`,
+//                       JSON.stringify(items[zip2]),
+//                   );
+//                 },
+//             );
+//           },
+//       );
+
+//   const zipData = await zip.generateAsync({type: "uint8array"});
+//   const file = bucket.file("simple.zip");
+//   await file.save(zipData);
+
+//   logger.info("save: simple.zip");
+
+//   await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
+//     archiveSimpleZipsAt: new Date(),
+//   });
+// }
+
 /**
  * Merge data of ken_all and jigyosyo.zip and create an archive.
  * @param {Object} firebase Firebase API
  * @return {Promise} void
  */
-async function archiveSimpleZips(firebase) {
+async function mergeSimple(firebase) {
   const {db, bucket, logger} = firebase;
 
   const info = await db.collection(COLLECTION_ZIP)
       .orderBy("mergedJisx040xAt", "desc")
       .limit(1).get();
 
-  if (!info.docs || info.docs[0].get("archiveSimpleZipsAt")) {
+  if (!info.docs || info.docs[0].get("mergeSimpleAt")) {
     return;
   }
 
   const {jisx0401s, jisx0402s, k, j} = await margeSource(bucket);
 
-  const zip = new JSZip();
+  const data = [];
+  const records = [];
 
   mergeArrays(Object.keys(k), Object.keys(j))
       .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
@@ -548,65 +596,59 @@ async function archiveSimpleZips(firebase) {
           function({zip1, items}) {
             Object.keys(items).forEach(
                 function(zip2) {
-                  zip.file(
-                      `${zip1}${zip2}.json`,
-                      JSON.stringify(items[zip2]),
-                  );
+                  const zip = `${zip1}${zip2}`;
+                  data.push({zip, ...items[zip2]});
+                  const {pref, city, addr1, addr2, name} = items[zip2];
+                  records.push([zip, pref, city, addr1, addr2, name]);
                 },
             );
           },
       );
 
-  const zipData = await zip.generateAsync({type: "uint8array"});
+  const json = bucket.file("simple.json");
+  await json.save(JSON.stringify(records.map(
+      ([zip, pref, city, addr1, addr2, name]) => ({
+        zip, pref, city, addr1, addr2, name,
+      })),
+  ));
+
+  logger.info("save: simple.json");
+
+  const csvOptions = {
+    quoted: true,
+    quoted_empty: true,
+    record_delimiter: "windows",
+  };
+
+  const csvUtf8 = bucket.file("simple_utf8.csv");
+  await csvUtf8.save(stringify(records, csvOptions));
+
+  logger.info("save: simple_utf8.csv");
+
+  const csvSjis = bucket.file("simple_sjis.csv");
+  await csvSjis.save(iconv.encode(stringify(records, csvOptions), "Shift_JIS"));
+
+  logger.info("save: simple_sjis.csv");
+
+  const zipImage = new JSZip();
+
+  records.forEach(
+      function([zip, pref, city, addr1, addr2, name]) {
+        zipImage.file(
+            `${zip}.json`,
+            JSON.stringify({pref, city, addr1, addr2, name}),
+        );
+      },
+  );
+
+  const zipData = await zipImage.generateAsync({type: "uint8array"});
   const file = bucket.file("simple.zip");
   await file.save(zipData);
 
   logger.info("save: simple.zip");
 
   await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
-    archiveSimpleZipsAt: new Date(),
-  });
-}
-
-/**
- * Merge data of ken_all and jigyosyo.zip and create an archive.
- * @param {Object} firebase Firebase API
- * @return {Promise} void
- */
-async function mergeSimpleZipsAll(firebase) {
-  const {db, bucket, logger} = firebase;
-
-  const info = await db.collection(COLLECTION_ZIP)
-      .orderBy("mergedJisx040xAt", "desc")
-      .limit(1).get();
-
-  if (!info.docs || info.docs[0].get("mergeSimpleZipsAllAt")) {
-    return;
-  }
-
-  const {jisx0401s, jisx0402s, k, j} = await margeSource(bucket);
-
-  const json = [];
-
-  mergeArrays(Object.keys(k), Object.keys(j))
-      .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
-      .forEach(
-          function({zip1, items}) {
-            Object.keys(items).forEach(
-                function(zip2) {
-                  json.push({zip: `${zip1}${zip2}`, ...items[zip2]});
-                },
-            );
-          },
-      );
-
-  const file = bucket.file("simple.json");
-  await file.save(JSON.stringify(json));
-
-  logger.info("save: simple.json");
-
-  await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
-    mergeSimpleZipsAllAt: new Date(),
+    mergeSimpleAt: new Date(),
   });
 }
 
@@ -615,6 +657,6 @@ module.exports = {
   jigyosyo,
   mergeJisx040x,
   mergeSimpleZips,
-  mergeSimpleZipsAll,
-  archiveSimpleZips,
+  mergeSimple,
+  // archiveSimpleZips,
 };

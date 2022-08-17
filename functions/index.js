@@ -8,7 +8,7 @@ const {requireAdminAccount} = require("./guard");
 const accounts = require("./accounts");
 const {
   kenAll, jigyosyo, mergeJisx040x, mergeSimpleZips,
-  mergeSimpleZipsAll, archiveSimpleZips,
+  mergeSimple,
 } = require("./zip");
 
 const region = "asia-northeast2";
@@ -117,12 +117,7 @@ exports.mergeSimpleZips9 = functions.region(region)
     .pubsub.schedule("50 3 * * *").timeZone(timeZone)
     .onRun(() => mergeSimpleZips(firebase, "9"));
 
-exports.mergeSimpleZipsAll = functions.region(region)
-    .runWith({timeoutSeconds, memory: "2GB"})
-    .pubsub.schedule("21 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZipsAll(firebase));
-
-exports.archiveSimpleZips = functions.region(region)
+exports.mergeSimple = functions.region(region)
     .runWith({timeoutSeconds, memory: "2GB"})
     .pubsub.schedule("23 3 * * *").timeZone(timeZone)
-    .onRun(() => archiveSimpleZips(firebase));
+    .onRun(() => mergeSimple(firebase));

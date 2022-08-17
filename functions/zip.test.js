@@ -13,8 +13,7 @@ const {
   jigyosyo,
   mergeJisx040x,
   mergeSimpleZips,
-  mergeSimpleZipsAll,
-  archiveSimpleZips,
+  mergeSimple,
 } = require("./zip");
 
 const doc1 = createFirestoreDocSnapMock(jest, "k20200101000000000000");
@@ -419,12 +418,12 @@ describe("mergeZips", function() {
   });
 });
 
-describe("mergeSimpleZipsAll", function() {
+describe("mergeSimple", function() {
   it("ignores merged data.", async function() {
-    doc1.data.mockReturnValue({archiveSimpleZipsAt: new Date()});
+    doc1.data.mockReturnValue({mergeSimpleAt: new Date()});
     mockQueryRef.get.mockResolvedValue({docs: [doc1]});
 
-    await archiveSimpleZips(firebase);
+    await mergeSimple(firebase);
 
     expect(firebase.logger.info.mock.calls).toEqual([]);
   });
@@ -446,44 +445,12 @@ describe("mergeSimpleZipsAll", function() {
             readFile(path.join(pathData, "j_zips.json")),
         );
 
-    await mergeSimpleZipsAll(firebase);
+    await mergeSimple(firebase);
 
     expect(firebase.logger.info.mock.calls).toEqual([
       ["save: simple.json"],
-    ]);
-  });
-});
-
-describe("archiveSimpleZips", function() {
-  it("ignores merged data.", async function() {
-    doc1.data.mockReturnValue({archiveSimpleZipsAt: new Date()});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-
-    await archiveSimpleZips(firebase);
-
-    expect(firebase.logger.info.mock.calls).toEqual([]);
-  });
-
-  it("merges unmerged work/[k|j]_zips.json to simpe.zip", async function() {
-    doc1.data.mockReturnValueOnce({});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-    mockBucketFileDownload
-        .mockReturnValueOnce(
-            readFile(path.join(pathData, "jisx0401.json")),
-        )
-        .mockReturnValueOnce(
-            readFile(path.join(pathData, "jisx0402.json")),
-        )
-        .mockReturnValueOnce(
-            readFile(path.join(pathData, "k_zips.json")),
-        )
-        .mockReturnValueOnce(
-            readFile(path.join(pathData, "j_zips.json")),
-        );
-
-    await archiveSimpleZips(firebase);
-
-    expect(firebase.logger.info.mock.calls).toEqual([
+      ["save: simple_utf8.csv"],
+      ["save: simple_sjis.csv"],
       ["save: simple.zip"],
     ]);
   });
