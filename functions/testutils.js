@@ -56,9 +56,9 @@ function createMockFirebase(jest) {
   const mockCollectionRef = {
     doc: mockDoc,
     add: jest.fn(),
-    orderBy: jest.fn(function() {
-      return mockQueryRef;
-    }),
+    // orderBy: jest.fn(function() {
+    //   return mockQueryRef;
+    // }),
     where: jest.fn(function() {
       return mockQueryRef;
     }),
@@ -91,6 +91,10 @@ function createMockFirebase(jest) {
     };
   });
 
+  const mockTaskQueue = {
+    enqueue: jest.fn(),
+  };
+
   const firebase = {
     auth: mockAuth,
     db: {
@@ -101,6 +105,11 @@ function createMockFirebase(jest) {
     },
     bucket: {
       file: mockBucketFile,
+    },
+    functions: {
+      taskQueue: function() {
+        return mockTaskQueue;
+      },
     },
     logger: {
       log: jest.fn(),
@@ -125,6 +134,7 @@ function createMockFirebase(jest) {
     mockBucketFileExists,
     mockBucketFileDownload,
     mockBucketFileMakePublic,
+    mockTaskQueue,
     firebase,
   };
 }

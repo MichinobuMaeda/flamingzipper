@@ -82,51 +82,26 @@ describe("updateUserPassword", function() {
   });
 });
 
-describe("kenAll", function() {
-  it("calls kenAll()", function() {
-    const wrapped = test.wrap(index.kenAll);
+describe("getSources", function() {
+  it("calls getSources()", function() {
+    const wrapped = test.wrap(index.getSources);
     wrapped();
-    expect(zip.kenAll.mock.calls).toHaveLength(1);
+    expect(zip.getSources.mock.calls).toHaveLength(1);
   });
 });
 
-describe("jigyosyo", function() {
-  it("calls jigyosyo()", function() {
-    const wrapped = test.wrap(index.jigyosyo);
+describe("parseSources", function() {
+  it("calls parseSources()", function() {
+    const wrapped = test.wrap(index.parseSources);
     wrapped();
-    expect(zip.jigyosyo.mock.calls).toHaveLength(1);
+    expect(zip.parseSources.mock.calls).toHaveLength(1);
   });
 });
 
-describe("mergeJisx040x", function() {
-  it("calls mergeJisx040x()", function() {
-    const wrapped = test.wrap(index.mergeJisx040x);
+describe("generateSample", function() {
+  it("calls generateSample()", function() {
+    const wrapped = test.wrap(index.generateSample);
     wrapped();
-    expect(zip.mergeJisx040x.mock.calls).toHaveLength(1);
-  });
-});
-
-describe("mergeZips0 -> 9", function() {
-  it("calls mergeZips0() -> 9() with prefix '0' -> '9'", function() {
-    Array.from(Array(10).keys()).forEach(
-        function(n) {
-          const wrapped = test.wrap(index[`mergeSimpleZips${n}`]);
-          wrapped();
-        },
-    );
-    expect(zip.mergeSimpleZips.mock.calls).toHaveLength(10);
-    Array.from(Array(10).keys()).forEach(
-        function(n) {
-          expect(zip.mergeSimpleZips.mock.calls[n][1]).toEqual(`${n}`);
-        },
-    );
-  });
-});
-
-describe("mergeSimple", function() {
-  it("calls mergeSimple()", function() {
-    const wrapped = test.wrap(index.mergeSimple);
-    wrapped();
-    expect(zip.mergeSimple.mock.calls).toHaveLength(1);
+    expect(zip.generateSample.mock.calls).toHaveLength(1);
   });
 });

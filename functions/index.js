@@ -3,16 +3,17 @@ const {initializeApp} = require("firebase-admin/app");
 const {getAuth} = require("firebase-admin/auth");
 const {getFirestore} = require("firebase-admin/firestore");
 const {getStorage} = require("firebase-admin/storage");
+const {getFunctions} = require("firebase-admin/functions");
+const {region, timeZone} = require("./config");
 const deployment = require("./deployment");
 const {requireAdminAccount} = require("./guard");
 const accounts = require("./accounts");
 const {
-  kenAll, jigyosyo, mergeJisx040x, mergeSimpleZips,
-  mergeSimple,
+  getSources,
+  parseSources,
+  generateSample,
 } = require("./zip");
 
-const region = "asia-northeast2";
-const timeZone = "Asia/Tokyo";
 const timeoutSeconds = 300;
 
 initializeApp();
@@ -21,6 +22,7 @@ const firebase = {
   auth: getAuth(),
   db: getFirestore(),
   bucket: getStorage().bucket(),
+  functions: getFunctions(),
   logger: functions.logger,
 };
 
@@ -52,72 +54,16 @@ exports.updateUserPassword = functions.region(region)
           );
         });
 
-exports.kenAll = functions.region(region)
-    .runWith({timeoutSeconds, memory: "1GB"})
+exports.getSources = functions.region(region)
     .pubsub.schedule("11 3 * * *").timeZone(timeZone)
-    .onRun(() => kenAll(firebase));
+    .onRun(() => getSources(firebase));
 
-exports.jigyosyo = functions.region(region)
-    .runWith({timeoutSeconds, memory: "1GB"})
-    .pubsub.schedule("12 3 * * *").timeZone(timeZone)
-    .onRun(() => jigyosyo(firebase));
-
-exports.mergeJisx040x = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("17 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeJisx040x(firebase));
-
-exports.mergeSimpleZips0 = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("41 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZips(firebase, "0"));
-
-exports.mergeSimpleZips1 = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("42 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZips(firebase, "1"));
-
-exports.mergeSimpleZips2 = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("43 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZips(firebase, "2"));
-
-exports.mergeSimpleZips3 = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("44 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZips(firebase, "3"));
-
-exports.mergeSimpleZips4 = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("45 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZips(firebase, "4"));
-
-exports.mergeSimpleZips5 = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("46 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZips(firebase, "5"));
-
-exports.mergeSimpleZips6 = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("47 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZips(firebase, "6"));
-
-exports.mergeSimpleZips7 = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("48 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZips(firebase, "7"));
-
-exports.mergeSimpleZips8 = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("49 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZips(firebase, "8"));
-
-exports.mergeSimpleZips9 = functions.region(region)
-    .runWith({timeoutSeconds})
-    .pubsub.schedule("50 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimpleZips(firebase, "9"));
-
-exports.mergeSimple = functions.region(region)
+exports.parseSources = functions.region(region)
     .runWith({timeoutSeconds, memory: "2GB"})
-    .pubsub.schedule("23 3 * * *").timeZone(timeZone)
-    .onRun(() => mergeSimple(firebase));
+    .tasks.taskQueue()
+    .onDispatch((data) => parseSources(firebase, data));
+
+exports.generateSample = functions.region(region)
+    .runWith({timeoutSeconds})
+    .tasks.taskQueue()
+    .onDispatch((data) => generateSample(firebase, data));
