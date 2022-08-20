@@ -1,4 +1,4 @@
-const {readFile, writeFile} = require("node:fs/promises");
+const {readFile /* , writeFile */} = require("node:fs/promises");
 const JSZip = require("jszip");
 const axios = require("axios");
 jest.mock("axios");
@@ -9,109 +9,371 @@ const {
   createMockFirebase,
 } = require("./testutils");
 const {
-  kenAll,
-  jigyosyo,
-  mergeJisx040x,
-  mergeSimpleZips,
-  mergeSimple,
+  getSources,
+  parseSources,
+  generateSample,
 } = require("./zip");
 
-const doc1 = createFirestoreDocSnapMock(jest, "k20200101000000000000");
 const {
   firebase,
+  mockDoc,
+  mockDocRef,
   mockQueryRef,
   mockBucketFile,
   mockBucketFileSave,
-  mockBucketFileExists,
+  // mockBucketFileExists,
   mockBucketFileDownload,
-  mockBucketFileMakePublic,
+  // mockBucketFileMakePublic,
+  mockTaskQueue,
 } = createMockFirebase(jest);
 
 const pathData = path.join(__dirname, "..", "test", "data");
-const pathTmp = path.join(__dirname, "..", "tmp");
+// const pathTmp = path.join(__dirname, "..", "tmp");
 
 afterEach(async function() {
   jest.clearAllMocks();
 });
 
-describe("kenAll", function() {
-  it("ignores the page with sum saved.", async function() {
-    const {createHash} = await require("node:crypto");
-    const pageData = "test page data 1";
-    const hashPage = createHash("sha256");
-    hashPage.update(new TextEncoder().encode(pageData));
-    const page = hashPage.digest("hex");
-    doc1.data.mockReturnValue({page});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-    axios.get
-        .mockResolvedValueOnce({data: new TextEncoder().encode(pageData)});
+/**
+ * Test data: archives
+ * @return {Object}
+ */
+async function createArchiveData() {
+  const {createHash} = await require("node:crypto");
+  const pageDataK = "test page data K";
+  const pageDataJ = "test page data J";
+  const hashPageK = createHash("sha256");
+  const hashPageJ = createHash("sha256");
+  hashPageK.update(new TextEncoder().encode(pageDataK));
+  hashPageJ.update(new TextEncoder().encode(pageDataJ));
+  const pageHashK = hashPageK.digest("hex");
+  const pageHashJ = hashPageJ.digest("hex");
 
-    await kenAll(firebase);
+  const zipK = new JSZip();
+  const zipJ = new JSZip();
+  zipK.file(
+      "KEN_ALL.CSV",
+      await readFile(path.join(pathData, "KEN_ALL.CSV")),
+  );
+  zipJ.file(
+      "JIGYOSYO.CSV",
+      await readFile(path.join(pathData, "JIGYOSYO.CSV")),
+  );
+  const zipDataK = await zipK.generateAsync({type: "uint8array"});
+  const zipDataJ = await zipJ.generateAsync({type: "uint8array"});
+  const hashZipK = createHash("sha256");
+  const hashZipJ = createHash("sha256");
+  hashZipK.update(zipDataK);
+  hashZipJ.update(zipDataJ);
+  const zipHashK = hashZipK.digest("hex");
+  const zipHashJ = hashZipJ.digest("hex");
+
+  return {
+    pageDataK,
+    pageDataJ,
+    zipDataK,
+    zipDataJ,
+    pageHashK,
+    pageHashJ,
+    zipHashK,
+    zipHashJ,
+  };
+}
+
+describe("getSources", function() {
+  it("ignores pages with sum saved.", async function() {
+    const {
+      pageDataK,
+      pageDataJ,
+      pageHashK,
+      pageHashJ,
+    } = await createArchiveData();
+
+    const docK = createFirestoreDocSnapMock(jest, "k20200101000000000000");
+    const docJ = createFirestoreDocSnapMock(jest, "j20200101000000000000");
+    docK.data.mockReturnValue({
+      page: pageHashK,
+    });
+    docJ.data.mockReturnValue({
+      page: pageHashJ,
+    });
+    mockQueryRef.get
+        .mockResolvedValueOnce({docs: [docK]})
+        .mockResolvedValueOnce({docs: [docJ]});
+
+    axios.get
+        .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataK)})
+        .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataJ)});
+
+    await getSources(firebase);
+
+    expect(mockTaskQueue.enqueue.mock.calls).toEqual([
+      [
+        {
+          k: {id: expect.stringMatching(/^k[0-9]+.$/)},
+          j: {id: expect.stringMatching(/^j[0-9]+.$/)},
+        },
+      ],
+    ]);
 
     expect(firebase.logger.info.mock.calls).toEqual([]);
   });
 
-  it("ignores the zip with sum saved.", async function() {
-    const {createHash} = await require("node:crypto");
-    const pageData = "test page data 1";
+  it("ignores the zips with sum saved.", async function() {
+    const {
+      pageDataK,
+      pageDataJ,
+      zipDataK,
+      zipDataJ,
+      zipHashK,
+      zipHashJ,
+    } = await createArchiveData();
 
-    const zip = new JSZip();
-    zip.file(
-        "KEN_ALL.CSV",
-        await readFile(path.join(pathData, "KEN_ALL.CSV")),
-    );
-    const zipData = await zip.generateAsync({type: "uint8array"});
+    const docK = createFirestoreDocSnapMock(jest, "k20200101000000000000");
+    const docJ = createFirestoreDocSnapMock(jest, "j20200101000000000000");
+    docK.data.mockReturnValue({
+      page: "test",
+      sum: zipHashK,
+    });
+    docJ.data.mockReturnValue({
+      page: "test",
+      sum: zipHashJ,
+    });
+    mockQueryRef.get
+        .mockResolvedValueOnce({docs: [docK]})
+        .mockResolvedValueOnce({docs: [docJ]});
 
-    const hashPage = createHash("sha256");
-    hashPage.update(new TextEncoder().encode(pageData));
-    const hashZip = createHash("sha256");
-    hashZip.update(zipData);
-    const sum = hashZip.digest("hex");
-    doc1.data.mockReturnValue({page: "test", sum});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
     axios.get
-        .mockResolvedValueOnce({data: new TextEncoder().encode(pageData)})
-        .mockResolvedValueOnce({data: zipData.buffer});
+        .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataK)})
+        .mockResolvedValueOnce({data: zipDataK.buffer})
+        .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataJ)})
+        .mockResolvedValueOnce({data: zipDataJ.buffer});
 
-    await kenAll(firebase);
+    await getSources(firebase);
+
+    expect(mockTaskQueue.enqueue.mock.calls).toEqual([
+      [
+        {
+          k: {id: expect.stringMatching(/^k[0-9]+.$/)},
+          j: {id: expect.stringMatching(/^j[0-9]+.$/)},
+        },
+      ],
+    ]);
 
     expect(firebase.logger.info.mock.calls).toEqual([]);
   });
 
-  it("gets new zip.", async function() {
-    const {createHash} = await require("node:crypto");
-    const pageData = "test page data 1";
+  it("gets new ken_all.zip without saved data.", async function() {
+    const {
+      pageDataK,
+      pageDataJ,
+      zipDataK,
+      pageHashK,
+      pageHashJ,
+      zipHashK,
+      zipHashJ,
+    } = await createArchiveData();
 
-    const zip = new JSZip();
-    zip.file(
-        "KEN_ALL.CSV",
-        await readFile(path.join(pathData, "KEN_ALL.CSV")),
-    );
-    const zipData = await zip.generateAsync({type: "uint8array"});
+    const docK = createFirestoreDocSnapMock(jest, "k20200101000000000000");
+    const docJ = createFirestoreDocSnapMock(jest, "j20200101000000000000");
+    docK.data.mockReturnValue({
+      page: "test",
+      sum: "test",
+      savedAt: new Date(),
+      parsedAt: new Date(),
+    });
+    docJ.data.mockReturnValue({
+      page: pageHashJ,
+      sum: zipHashJ,
+      savedAt: new Date(),
+      parsedAt: new Date(),
+    });
+    mockQueryRef.get
+        .mockResolvedValueOnce({docs: [docK]})
+        .mockResolvedValueOnce({docs: [docJ]});
 
-    const hashPage = createHash("sha256");
-    hashPage.update(new TextEncoder().encode(pageData));
-    const hashZip = createHash("sha256");
-    hashZip.update(zipData);
-    const sum = hashZip.digest("hex");
-    doc1.data.mockReturnValue({page: "test", sum: "test"});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-    mockBucketFileExists.mockResolvedValue(false);
     axios.get
-        .mockResolvedValueOnce({data: new TextEncoder().encode(pageData)})
-        .mockResolvedValueOnce({data: zipData.buffer});
+        .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataK)})
+        .mockResolvedValueOnce({data: zipDataK.buffer})
+        .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataJ)});
 
-    await kenAll(firebase);
+    await getSources(firebase);
 
-    expect(firebase.logger.info.mock.calls).toEqual([
-      [sum],
-      [expect.stringContaining("saved: ")],
-      ["unziped: KEN_ALL.CSV"],
-      [expect.stringContaining("parsed: ")],
+    expect(mockDoc.mock.calls).toEqual([
+      [expect.stringMatching(/^k/)],
+    ]);
+
+    expect(mockDocRef.set.mock.calls).toEqual([
+      [{
+        type: "k",
+        page: pageHashK,
+        sum: zipHashK,
+        savedAt: expect.anything(),
+      }],
     ]);
 
     expect(mockBucketFile.mock.calls).toEqual([
-      [expect.stringMatching(/archives\/k[0-9]+.zip/)],
+      [expect.stringMatching(/^sources\/k[0-9]+.zip$/)],
+    ]);
+
+    expect(mockBucketFileSave.mock.calls).toEqual([
+      [expect.anything()], // Buffer
+    ]);
+
+    expect(firebase.logger.info.mock.calls).toEqual([
+      [expect.stringContaining("saved: k")],
+    ]);
+
+    expect(mockTaskQueue.enqueue.mock.calls).toEqual([
+      [
+        {
+          k: {
+            id: expect.stringMatching(/^k[0-9]+.$/),
+          },
+          j: {
+            id: expect.stringMatching(/^j[0-9]+.$/),
+            savedAt: expect.anything(),
+            parsedAt: expect.anything(),
+          },
+        },
+      ],
+    ]);
+  });
+
+  it("gets new jigyosyo.zip without saved data.", async function() {
+    const {
+      pageDataK,
+      pageDataJ,
+      zipDataJ,
+      pageHashK,
+      pageHashJ,
+      zipHashK,
+      zipHashJ,
+    } = await createArchiveData();
+
+    const docK = createFirestoreDocSnapMock(jest, "k20200101000000000000");
+    const docJ = createFirestoreDocSnapMock(jest, "j20200101000000000000");
+    docK.data.mockReturnValue({
+      page: pageHashK,
+      sum: zipHashK,
+      savedAt: new Date(),
+      parsedAt: new Date(),
+    });
+    docJ.data.mockReturnValue({
+      page: "test",
+      sum: "test",
+      savedAt: new Date(),
+      parsedAt: new Date(),
+    });
+    mockQueryRef.get
+        .mockResolvedValueOnce({docs: [docK]})
+        .mockResolvedValueOnce({docs: [docJ]});
+
+    axios.get
+        .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataK)})
+        .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataJ)})
+        .mockResolvedValueOnce({data: zipDataJ.buffer});
+
+    await getSources(firebase);
+
+    expect(mockDoc.mock.calls).toEqual([
+      [expect.stringMatching(/^j/)],
+    ]);
+
+    expect(mockDocRef.set.mock.calls).toEqual([
+      [{
+        type: "j",
+        page: pageHashJ,
+        sum: zipHashJ,
+        savedAt: expect.anything(),
+      }],
+    ]);
+
+    expect(mockBucketFile.mock.calls).toEqual([
+      [expect.stringMatching(/^sources\/j[0-9]+.zip$/)],
+    ]);
+
+    expect(mockBucketFileSave.mock.calls).toEqual([
+      [expect.anything()], // Buffer
+    ]);
+
+    expect(firebase.logger.info.mock.calls).toEqual([
+      [expect.stringContaining("saved: j")],
+    ]);
+
+    expect(mockTaskQueue.enqueue.mock.calls).toEqual([
+      [
+        {
+          k: {
+            id: expect.stringMatching(/^k[0-9]+.$/),
+            savedAt: expect.anything(),
+            parsedAt: expect.anything(),
+          },
+          j: {
+            id: expect.stringMatching(/^j[0-9]+.$/),
+          },
+        },
+      ],
+    ]);
+  });
+});
+
+describe("parseSources", function() {
+  it("ignores parsed data.", async function() {
+    await parseSources(
+        firebase,
+        {
+          k: {
+            id: "k20200101000000000000",
+            savedAt: new Date(),
+            parsedAt: new Date(),
+          },
+          j: {
+            id: "j20200101000000000000",
+            savedAt: new Date(),
+            parsedAt: new Date(),
+          },
+        },
+    );
+
+    expect(firebase.logger.info.mock.calls).toEqual([]);
+
+    expect(mockTaskQueue.enqueue.mock.calls).toEqual([]);
+  });
+
+  it("parses new ken_all.zip without parsed data.", async function() {
+    const {zipDataK} = await createArchiveData();
+
+    mockBucketFileDownload
+        // getSourceInfo
+        .mockReturnValueOnce([Buffer.from(zipDataK)])
+        // getParsedData
+        .mockResolvedValueOnce(
+            [await readFile(path.join(pathData, "j_jisx0401.json"))])
+        .mockResolvedValueOnce(
+            [await readFile(path.join(pathData, "j_jisx0402.json"))])
+        .mockResolvedValueOnce(
+            [await readFile(path.join(pathData, "j_zips.json"))]);
+
+    await parseSources(
+        firebase,
+        {
+          k: {
+            id: "k20200101000000000000",
+            savedAt: new Date(),
+          },
+          j: {
+            id: "j20200101000000000000",
+            savedAt: new Date(),
+            parsedAt: new Date(),
+          },
+        },
+    );
+
+    expect(mockBucketFile.mock.calls).toEqual([
+      // getSourceInfo
+      [expect.stringMatching(/sources\/k[0-9]+.zip/)],
+      // saveParsed
       [expect.stringMatching(/work\/k[0-9]+_jisx0401.json/)],
       [expect.stringMatching(/work\/k[0-9]+_jisx0402.json/)],
       [expect.stringMatching(/work\/k[0-9]+_zips.json/)],
@@ -121,181 +383,67 @@ describe("kenAll", function() {
       ["work/k_jisx0402.json"],
       [expect.stringMatching(/work\/k[0-9]+_zips.json/)],
       ["work/k_zips.json"],
+      // getParsedData
+      ["work/j_jisx0401.json"],
+      ["work/j_jisx0402.json"],
+      ["work/j_zips.json"],
+      ["jisx0401.json"],
+      ["jisx0401.json"],
+      ["jisx0402.json"],
+      ["jisx0402.json"],
+      ["simple.json"],
+      ["simple_utf8.csv"],
+      ["simple_sjis.csv"],
+      ["simple.zip"],
+      ["update.txt"],
+      // saveHistory
+      ["simple.json"],
+      [expect.stringMatching(/history\/[0-9]+_simple.json/)],
+      ["simple_utf8.csv"],
+      [expect.stringMatching(/history\/[0-9]+_simple_utf8.csv/)],
+      ["simple_sjis.csv"],
+      [expect.stringMatching(/history\/[0-9]+_simple_sjis.csv/)],
+      ["simple.zip"],
+      [expect.stringMatching(/history\/[0-9]+_simple.zip/)],
     ]);
 
-    const jisx0401 = JSON.parse(
-        await readFile(path.join(pathData, "k_jisx0401.json")),
-    );
-    const jisx0402 = JSON.parse(
-        await readFile(path.join(pathData, "k_jisx0402.json")),
-    );
-    const zips = JSON.parse(
-        await readFile(path.join(pathData, "k_zips.json")),
-    );
-    // await writeFile(
-    //     path.join(pathTmp, "k_zips.json"),
-    //     mockBucketFileSave.mock.calls[3][0],
-    // );
-    expect(JSON.parse(mockBucketFileSave.mock.calls[1][0])).toEqual(jisx0401);
-    expect(JSON.parse(mockBucketFileSave.mock.calls[2][0])).toEqual(jisx0402);
-    expect(JSON.parse(mockBucketFileSave.mock.calls[3][0])).toEqual(zips);
-  });
-});
+    expect(mockDoc.mock.calls).toEqual([
+      [expect.stringMatching(/^k/)],
+      [expect.stringMatching(/^k/)],
+      [expect.stringMatching(/^j/)],
+    ]);
 
-describe("jigyosyo", function() {
-  it("ignores the page with sum saved.", async function() {
-    const {createHash} = await require("node:crypto");
-    const pageData = "test page data 1";
-    const hashPage = createHash("sha256");
-    hashPage.update(new TextEncoder().encode(pageData));
-    const page = hashPage.digest("hex");
-    doc1.data.mockReturnValue({page});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-    axios.get
-        .mockResolvedValueOnce({data: new TextEncoder().encode(pageData)});
-
-    await jigyosyo(firebase);
-
-    expect(firebase.logger.info.mock.calls).toEqual([]);
-  });
-
-  it("ignores the zip with sum saved.", async function() {
-    const {createHash} = await require("node:crypto");
-    const pageData = "test page data 1";
-
-    const zip = new JSZip();
-    zip.file(
-        "JIGYOSYO.CSV",
-        await readFile(path.join(pathData, "JIGYOSYO.CSV")),
-    );
-    const zipData = await zip.generateAsync({type: "uint8array"});
-
-    const hashPage = createHash("sha256");
-    hashPage.update(new TextEncoder().encode(pageData));
-    const hashZip = createHash("sha256");
-    hashZip.update(zipData);
-    const sum = hashZip.digest("hex");
-    doc1.data.mockReturnValue({page: "test", sum});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-    axios.get
-        .mockResolvedValueOnce({data: new TextEncoder().encode(pageData)})
-        .mockResolvedValueOnce({data: zipData.buffer});
-
-    await jigyosyo(firebase);
-
-    expect(firebase.logger.info.mock.calls).toEqual([]);
-  });
-
-  it("gets new zip.", async function() {
-    const {createHash} = await require("node:crypto");
-    const pageData = "test page data 1";
-
-    const zip = new JSZip();
-    zip.file(
-        "JIGYOSYO.CSV",
-        await readFile(path.join(pathData, "JIGYOSYO.CSV")),
-    );
-    const zipData = await zip.generateAsync({type: "uint8array"});
-
-    const hashPage = createHash("sha256");
-    hashPage.update(new TextEncoder().encode(pageData));
-    const hashZip = createHash("sha256");
-    hashZip.update(zipData);
-    const sum = hashZip.digest("hex");
-    doc1.data.mockReturnValue({page: "test", sum: "test"});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-    mockBucketFileExists.mockResolvedValue(false);
-    axios.get
-        .mockResolvedValueOnce({data: new TextEncoder().encode(pageData)})
-        .mockResolvedValueOnce({data: zipData.buffer});
-
-    await jigyosyo(firebase);
+    expect(mockDocRef.update.mock.calls).toEqual([
+      [{parsedAt: expect.anything()}],
+      [{mergedAt: expect.anything()}],
+      [{mergedAt: expect.anything()}],
+    ]);
 
     expect(firebase.logger.info.mock.calls).toEqual([
-      [sum],
-      [expect.stringContaining("saved: ")],
-      ["unziped: JIGYOSYO.CSV"],
-      [expect.stringContaining("parsed: ")],
+      [expect.stringMatching(/k: k[0-9]+, j: j[0-9]+/)],
+      ["extracted: KEN_ALL.CSV"],
+      [expect.stringContaining("parsed: k")],
+      ["merged: jisx0401.json"],
+      ["merged: jisx0402.json"],
+      ["saved: simple.json"],
+      ["saved: simple_utf8.csv"],
+      ["saved: simple_sjis.csv"],
+      ["saved: simple.zip"],
     ]);
 
-    expect(mockBucketFile.mock.calls).toEqual([
-      [expect.stringMatching(/archives\/j[0-9]+.zip/)],
-      [expect.stringMatching(/work\/j[0-9]+_jisx0401.json/)],
-      [expect.stringMatching(/work\/j[0-9]+_jisx0402.json/)],
-      [expect.stringMatching(/work\/j[0-9]+_zips.json/)],
-      [expect.stringMatching(/work\/j[0-9]+_jisx0401.json/)],
-      ["work/j_jisx0401.json"],
-      [expect.stringMatching(/work\/j[0-9]+_jisx0402.json/)],
-      ["work/j_jisx0402.json"],
-      [expect.stringMatching(/work\/j[0-9]+_zips.json/)],
-      ["work/j_zips.json"],
-    ]);
-
-    const jisx0401 = JSON.parse(
-        await readFile(path.join(pathData, "j_jisx0401.json")),
-    );
-    const jisx0402 = JSON.parse(
-        await readFile(path.join(pathData, "j_jisx0402.json")),
-    );
-    const zips = JSON.parse(
-        await readFile(path.join(pathData, "j_zips.json")),
-    );
-    // await writeFile(
-    //     path.join(pathTmp, "j_zips.json"),
-    //     mockBucketFileSave.mock.calls[3][0],
-    // );
-    expect(JSON.parse(mockBucketFileSave.mock.calls[1][0])).toEqual(jisx0401);
-    expect(JSON.parse(mockBucketFileSave.mock.calls[2][0])).toEqual(jisx0402);
-    expect(JSON.parse(mockBucketFileSave.mock.calls[3][0])).toEqual(zips);
-  });
-});
-
-describe("mergeJisx040x", function() {
-  it("ignores merged data.", async function() {
-    doc1.data.mockReturnValue({mergedJisx040xAt: new Date()});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-
-    await mergeJisx040x(firebase);
-
-    expect(firebase.logger.info.mock.calls).toEqual([]);
-  });
-
-  it("merges unmerged work/[k|j]_jisx0401.json" +
-     " and work/[k|j]_jisx0401.json ", async function() {
-    doc1.data.mockReturnValue({});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-    mockBucketFileDownload
-        .mockReturnValueOnce(readFile(path.join(pathData, "k_jisx0401.json")))
-        .mockReturnValueOnce(readFile(path.join(pathData, "j_jisx0401.json")))
-        .mockReturnValueOnce(readFile(path.join(pathData, "k_jisx0402.json")))
-        .mockReturnValueOnce(readFile(path.join(pathData, "j_jisx0402.json")));
-    mockBucketFileMakePublic.mockResolvedValue();
-
-    await mergeJisx040x(firebase);
-
-    expect(mockBucketFile.mock.calls).toEqual([
-      ["work/k_jisx0401.json"],
-      ["work/j_jisx0401.json"],
-      ["jisx0401.json"], // .save()
-      ["jisx0401.json"], // .makePublic()
-      ["work/k_jisx0402.json"],
-      ["work/j_jisx0402.json"],
-      ["jisx0402.json"], // .save()
-      ["jisx0402.json"], // .makePublic()
-    ]);
-
-    const saved101 = JSON.parse(mockBucketFileSave.mock.calls[0][0])
+    const saved101 = JSON.parse(mockBucketFileSave.mock.calls[3][0])
         .map((item) => ({code: item.code, name: item.name}));
     const comp101 = JSON
         .parse(await readFile(path.join(pathData, "jisx0401.json")))
         .map((item) => ({code: item.code, name: item.name}));
-    const saved102 = JSON.parse(mockBucketFileSave.mock.calls[1][0])
+    const saved102 = JSON.parse(mockBucketFileSave.mock.calls[4][0])
         .map((item) => ({code: item.code, name: item.name}));
     const comp102 = JSON
         .parse(await readFile(path.join(pathData, "jisx0402.json")))
         .map((item) => ({code: item.code, name: item.name}));
 
-    const byCode = (a, b) => a.code === b.code ? 0 : a.code < b.code ? -1 : 1;
+    const byCode = (a, b) => a.code === b.code ?
+        0 : a.code < b.code ? -1 : 1;
 
     saved101.sort(byCode);
     comp101.sort(byCode);
@@ -305,49 +453,157 @@ describe("mergeJisx040x", function() {
     expect(saved101).toEqual(comp101);
     expect(saved102).toEqual(comp102);
 
+    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(10);
+    expect(mockTaskQueue.enqueue.mock.calls[0]).toEqual([
+      {
+        k: {id: "k20200101000000000000"},
+        j: {id: "j20200101000000000000"},
+        prefix: "0",
+      },
+    ]);
+
+    expect(mockTaskQueue.enqueue.mock.calls[9]).toEqual([
+      {
+        k: {id: "k20200101000000000000"},
+        j: {id: "j20200101000000000000"},
+        prefix: "9",
+      },
+    ]);
+  });
+
+  it("parses new jigyosyo.zip without parsed data.", async function() {
+    const {zipDataJ} = await createArchiveData();
+
+    mockBucketFileDownload
+        // getParsedData
+        .mockResolvedValueOnce(
+            [await readFile(path.join(pathData, "k_jisx0401.json"))])
+        .mockResolvedValueOnce(
+            [await readFile(path.join(pathData, "k_jisx0402.json"))])
+        .mockResolvedValueOnce(
+            [await readFile(path.join(pathData, "k_zips.json"))])
+        // getSourceInfo
+        .mockReturnValueOnce([Buffer.from(zipDataJ)]);
+
+    await parseSources(
+        firebase,
+        {
+          k: {
+            id: "k20200101000000000000",
+            savedAt: new Date(),
+            parsedAt: new Date(),
+          },
+          j: {
+            id: "j20200101000000000000",
+            savedAt: new Date(),
+          },
+        },
+    );
+
+    expect(mockBucketFile.mock.calls).toEqual([
+      // getParsedData
+      ["work/k_jisx0401.json"],
+      ["work/k_jisx0402.json"],
+      ["work/k_zips.json"],
+      // getSourceInfo
+      [expect.stringMatching(/sources\/j[0-9]+.zip/)],
+      // saveParsed
+      [expect.stringMatching(/work\/j[0-9]+_jisx0401.json/)],
+      [expect.stringMatching(/work\/j[0-9]+_jisx0402.json/)],
+      [expect.stringMatching(/work\/j[0-9]+_zips.json/)],
+      [expect.stringMatching(/work\/j[0-9]+_jisx0401.json/)],
+      ["work/j_jisx0401.json"],
+      [expect.stringMatching(/work\/j[0-9]+_jisx0402.json/)],
+      ["work/j_jisx0402.json"],
+      [expect.stringMatching(/work\/j[0-9]+_zips.json/)],
+      ["work/j_zips.json"],
+      ["jisx0401.json"],
+      ["jisx0401.json"],
+      ["jisx0402.json"],
+      ["jisx0402.json"],
+      ["simple.json"],
+      ["simple_utf8.csv"],
+      ["simple_sjis.csv"],
+      ["simple.zip"],
+      ["update.txt"],
+      // saveHistory
+      ["simple.json"],
+      [expect.stringMatching(/history\/[0-9]+_simple.json/)],
+      ["simple_utf8.csv"],
+      [expect.stringMatching(/history\/[0-9]+_simple_utf8.csv/)],
+      ["simple_sjis.csv"],
+      [expect.stringMatching(/history\/[0-9]+_simple_sjis.csv/)],
+      ["simple.zip"],
+      [expect.stringMatching(/history\/[0-9]+_simple.zip/)],
+    ]);
+
+    expect(mockDoc.mock.calls).toEqual([
+      [expect.stringMatching(/^j/)],
+      [expect.stringMatching(/^k/)],
+      [expect.stringMatching(/^j/)],
+    ]);
+
+    expect(mockDocRef.update.mock.calls).toEqual([
+      [{parsedAt: expect.anything()}],
+      [{mergedAt: expect.anything()}],
+      [{mergedAt: expect.anything()}],
+    ]);
+
     expect(firebase.logger.info.mock.calls).toEqual([
+      [expect.stringMatching(/k: k[0-9]+, j: j[0-9]+/)],
+      ["extracted: JIGYOSYO.CSV"],
+      [expect.stringContaining("parsed: j")],
       ["merged: jisx0401.json"],
       ["merged: jisx0402.json"],
+      ["saved: simple.json"],
+      ["saved: simple_utf8.csv"],
+      ["saved: simple_sjis.csv"],
+      ["saved: simple.zip"],
+    ]);
+
+    const saved101 = JSON.parse(mockBucketFileSave.mock.calls[3][0])
+        .map((item) => ({code: item.code, name: item.name}));
+    const comp101 = JSON
+        .parse(await readFile(path.join(pathData, "jisx0401.json")))
+        .map((item) => ({code: item.code, name: item.name}));
+    const saved102 = JSON.parse(mockBucketFileSave.mock.calls[4][0])
+        .map((item) => ({code: item.code, name: item.name}));
+    const comp102 = JSON
+        .parse(await readFile(path.join(pathData, "jisx0402.json")))
+        .map((item) => ({code: item.code, name: item.name}));
+
+    const byCode = (a, b) => a.code === b.code ?
+        0 : a.code < b.code ? -1 : 1;
+
+    saved101.sort(byCode);
+    comp101.sort(byCode);
+    saved102.sort(byCode);
+    comp102.sort(byCode);
+
+    expect(saved101).toEqual(comp101);
+    expect(saved102).toEqual(comp102);
+
+    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(10);
+    expect(mockTaskQueue.enqueue.mock.calls[0]).toEqual([
+      {
+        k: {id: "k20200101000000000000"},
+        j: {id: "j20200101000000000000"},
+        prefix: "0",
+      },
+    ]);
+
+    expect(mockTaskQueue.enqueue.mock.calls[9]).toEqual([
+      {
+        k: {id: "k20200101000000000000"},
+        j: {id: "j20200101000000000000"},
+        prefix: "9",
+      },
     ]);
   });
 });
 
-describe("mergeZips", function() {
-  it("ignores merged data.", async function() {
-    doc1.data
-        .mockReturnValueOnce({mergeSimpleZips0At: new Date()})
-        .mockReturnValueOnce({mergeSimpleZips1At: new Date()});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-
-    await mergeSimpleZips(firebase, "0");
-    await mergeSimpleZips(firebase, "1");
-
-    expect(firebase.logger.info.mock.calls).toEqual([]);
-  });
-
-  it("merges unmerged work/[k|j]_zips.json", async function() {
-    doc1.data
-        .mockReturnValueOnce({})
-        .mockReturnValueOnce({mergeSimpleZips0At: new Date()})
-        .mockReturnValueOnce({mergeSimpleZips1At: new Date()})
-        .mockReturnValueOnce({mergeSimpleZips2At: new Date()})
-        .mockReturnValueOnce({mergeSimpleZips3At: new Date()})
-        .mockReturnValueOnce({mergeSimpleZips4At: new Date()})
-        .mockReturnValueOnce({mergeSimpleZips5At: new Date()})
-        .mockReturnValueOnce({mergeSimpleZips6At: new Date()})
-        .mockReturnValueOnce({mergeSimpleZips7At: new Date()})
-        .mockReturnValueOnce({
-          mergeSimpleZips0At: new Date(),
-          mergeSimpleZips1At: new Date(),
-          mergeSimpleZips2At: new Date(),
-          mergeSimpleZips3At: new Date(),
-          mergeSimpleZips4At: new Date(),
-          mergeSimpleZips5At: new Date(),
-          mergeSimpleZips6At: new Date(),
-          mergeSimpleZips7At: new Date(),
-          mergeSimpleZips8At: new Date(),
-        });
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
+describe("generateSample", function() {
+  it("generates sample json files.", async function() {
     Array.from(Array(10).keys()).reduce(
         function(ret) {
           ret
@@ -368,28 +624,32 @@ describe("mergeZips", function() {
         mockBucketFileDownload,
     );
 
-    await mergeSimpleZips(firebase, "0");
-    await mergeSimpleZips(firebase, "1");
-    await mergeSimpleZips(firebase, "2");
-    await mergeSimpleZips(firebase, "3");
-    await mergeSimpleZips(firebase, "4");
-    await mergeSimpleZips(firebase, "5");
-    await mergeSimpleZips(firebase, "6");
-    await mergeSimpleZips(firebase, "7");
-    await mergeSimpleZips(firebase, "8");
-    await mergeSimpleZips(firebase, "9");
+    const data = {
+      k: {id: "k20200101000000000000"},
+      j: {id: "j20200101000000000000"},
+    };
+    await generateSample(firebase, {...data, prefix: "0"});
+    await generateSample(firebase, {...data, prefix: "1"});
+    await generateSample(firebase, {...data, prefix: "2"});
+    await generateSample(firebase, {...data, prefix: "3"});
+    await generateSample(firebase, {...data, prefix: "4"});
+    await generateSample(firebase, {...data, prefix: "5"});
+    await generateSample(firebase, {...data, prefix: "6"});
+    await generateSample(firebase, {...data, prefix: "7"});
+    await generateSample(firebase, {...data, prefix: "8"});
+    await generateSample(firebase, {...data, prefix: "9"});
 
     expect(firebase.logger.info.mock.calls).toEqual([
-      ["merged: simple/0??.json"],
-      ["merged: simple/1??.json"],
-      ["merged: simple/2??.json"],
-      ["merged: simple/3??.json"],
-      ["merged: simple/4??.json"],
-      ["merged: simple/5??.json"],
-      ["merged: simple/6??.json"],
-      ["merged: simple/7??.json"],
-      ["merged: simple/8??.json"],
-      ["merged: simple/9??.json"],
+      ["generated: simple/0??.json"],
+      ["generated: simple/1??.json"],
+      ["generated: simple/2??.json"],
+      ["generated: simple/3??.json"],
+      ["generated: simple/4??.json"],
+      ["generated: simple/5??.json"],
+      ["generated: simple/6??.json"],
+      ["generated: simple/7??.json"],
+      ["generated: simple/8??.json"],
+      ["generated: simple/9??.json"],
     ]);
 
     const zip1s = mockBucketFile.mock.calls
@@ -408,50 +668,12 @@ describe("mergeZips", function() {
         {},
     );
 
-    await writeFile(
-        path.join(pathTmp, "simple.json"),
-        JSON.stringify(output),
-    );
+    // await writeFile(
+    //     path.join(pathTmp, "simple.json"),
+    //     JSON.stringify(output),
+    // );
     expect(output).toEqual(
         JSON.parse(await readFile(path.join(pathData, "simple.json"))),
     );
-  });
-});
-
-describe("mergeSimple", function() {
-  it("ignores merged data.", async function() {
-    doc1.data.mockReturnValue({mergeSimpleAt: new Date()});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-
-    await mergeSimple(firebase);
-
-    expect(firebase.logger.info.mock.calls).toEqual([]);
-  });
-
-  it("merges unmerged work/[k|j]_zips.json to simpe.json", async function() {
-    doc1.data.mockReturnValueOnce({});
-    mockQueryRef.get.mockResolvedValue({docs: [doc1]});
-    mockBucketFileDownload
-        .mockReturnValueOnce(
-            readFile(path.join(pathData, "jisx0401.json")),
-        )
-        .mockReturnValueOnce(
-            readFile(path.join(pathData, "jisx0402.json")),
-        )
-        .mockReturnValueOnce(
-            readFile(path.join(pathData, "k_zips.json")),
-        )
-        .mockReturnValueOnce(
-            readFile(path.join(pathData, "j_zips.json")),
-        );
-
-    await mergeSimple(firebase);
-
-    expect(firebase.logger.info.mock.calls).toEqual([
-      ["save: simple.json"],
-      ["save: simple_utf8.csv"],
-      ["save: simple_sjis.csv"],
-      ["save: simple.zip"],
-    ]);
   });
 });

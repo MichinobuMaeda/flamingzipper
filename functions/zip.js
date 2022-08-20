@@ -3,27 +3,28 @@ const iconv = require("iconv-lite");
 const axios = require("axios");
 const {parse} = require("csv-parse");
 const {stringify} =require( "csv-stringify/sync");
+const {region} = require("./config");
 
 const URL_K_PAGE = "https://www.post.japanpost.jp/zipcode/dl/kogaki-zip.html";
-const URL_K_ZIP = "https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip";
+const URL_K_SOURCE = "https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip";
 const URL_J_PAGE = "https://www.post.japanpost.jp/zipcode/dl/jigyosyo/index-zip.html";
-const URL_J_ZIP = "https://www.post.japanpost.jp/zipcode/dl/jigyosyo/zip/jigyosyo.zip";
-const COLLECTION_ZIP = "zips";
+const URL_J_SOURCE = "https://www.post.japanpost.jp/zipcode/dl/jigyosyo/zip/jigyosyo.zip";
+const COLLECTION_SOURCE = "sources";
 
 /**
- * Get zip file.
+ * Get source file.
  * @param {Object} firebase Firebase API
  * @param {string} type "k" / "j"
  * @param {string} pageUrl URL of the page
- * @param {string} zipUrl URL of the zip
- * @return {Promise} Reader of csv data or null
+ * @param {string} sourceUrl URL of the source
+ * @return {Promise<string>} ID of the source file
  */
-async function fetchZip(firebase, type, pageUrl, zipUrl) {
+async function getSource(firebase, type, pageUrl, sourceUrl) {
   const {db, bucket, logger} = firebase;
   const ts = new Date();
-  const info = await db.collection(COLLECTION_ZIP)
+  const info = await db.collection(COLLECTION_SOURCE)
       .where("type", "==", type)
-      .orderBy("createdAt", "desc")
+      .orderBy("savedAt", "desc")
       .limit(1).get();
   const respPage = await axios.get(pageUrl, {responseType: "arraybuffer"});
   const {createHash} = await require("node:crypto");
@@ -32,44 +33,84 @@ async function fetchZip(firebase, type, pageUrl, zipUrl) {
   const page = hashPage.digest("hex");
 
   if (info.docs.length == 1 && info.docs[0].get("page") === page) {
-    return {};
+    return {
+      id: info.docs[0].id,
+      savedAt: info.docs[0].get("savedAt"),
+      parsedAt: info.docs[0].get("parsedAt"),
+    };
   }
 
-  const respZip = await axios.get(zipUrl, {responseType: "arraybuffer"});
+  const respZip = await axios.get(sourceUrl, {responseType: "arraybuffer"});
   const hashZip = createHash("sha256");
   hashZip.update(Buffer.from(respZip.data));
   const sum = hashZip.digest("hex");
 
   if (info.docs.length == 1 && info.docs[0].get("sum") === sum) {
-    return {};
+    return {
+      id: info.docs[0].id,
+      savedAt: info.docs[0].get("savedAt"),
+      parsedAt: info.docs[0].get("parsedAt"),
+    };
   }
 
-  logger.info(sum);
   const id = `${type}${ts.toISOString().replace(/[^0-9]/g, "")}`;
-  await bucket.file(`archives/${id}.zip`).save(Buffer.from(respZip.data));
-  await db.collection(COLLECTION_ZIP).doc(id)
-      .set({type, page, sum, createdAt: ts});
+  await bucket.file(`sources/${id}.zip`).save(Buffer.from(respZip.data));
+  await db.collection(COLLECTION_SOURCE).doc(id)
+      .set({type, page, sum, savedAt: ts});
+
   logger.info(`saved: ${id}`);
+  return {id};
+}
+
+/**
+ * Get source files.
+ * @param {Object} firebase Firebase API
+ * @return {Promise} void
+ */
+async function getSources(firebase) {
+  const {functions} = firebase;
+
+  const k = await getSource(firebase, "k", URL_K_PAGE, URL_K_SOURCE);
+  const j = await getSource(firebase, "j", URL_J_PAGE, URL_J_SOURCE);
+
+  if (!k.parsedAt || !j.parsedAt) {
+    await functions.taskQueue(
+        `locations/${region}/functions/parseSources`,
+    ).enqueue({k, j});
+  }
+}
+
+/**
+ * Get data from source.
+ * @param {Object} firebase Firebase API
+ * @param {string} id ID of the source file
+ * @return {Promise} Reader of csv data or null
+ */
+async function getSourceData(firebase, id) {
+  const {bucket, logger} = firebase;
+
+  const source = await bucket.file(`sources/${id}.zip`).download();
 
   const zip = new JSZip();
-  await zip.loadAsync(respZip.data);
+  await zip.loadAsync(source[0]);
   const entry = zip.filter(function(relativePath, file) {
     return relativePath.match(/\.CSV$/i) && !file.dir;
   })[0];
-  logger.info(`unziped: ${entry.name}`);
+  logger.info(`extracted: ${entry.name}`);
   const readStream = entry.nodeStream();
+
   const textReader = iconv.decodeStream("Shift_JIS");
   const csvReader = parse();
   textReader.pipe(csvReader);
   readStream.pipe(textReader);
 
-  return {id, csvReader};
+  return csvReader;
 }
 
 /**
  * Save parsed data.
  * @param {Object} firebase Firebase API
- * @param {string} id ID of Zip file
+ * @param {string} id ID of the source file
  * @param {Array} jisx0401s List of prefectures
  * @param {Array} jisx0402s List of cities
  * @param {Object} zips List of zips
@@ -92,7 +133,7 @@ async function saveParsed(firebase, id, jisx0401s, jisx0402s, zips) {
       bucket.file(`work/${id.slice(0, 1)}_zips.json`),
   );
 
-  await db.collection(COLLECTION_ZIP).doc(id).update({
+  await db.collection(COLLECTION_SOURCE).doc(id).update({
     parsedAt: new Date(),
   });
 
@@ -196,18 +237,36 @@ function generateZipRecord(zips, code, item) {
 }
 
 /**
+ * Get parsed data for marge.
+ * @param {Object} firebase Firebase API
+ * @param {string} id ID of the source file
+ * @return {Object} {id, jisx0401s, jisx0402s, zips}
+ */
+async function getParsedData(firebase, id) {
+  const {bucket} = firebase;
+  const type = id.slice(0, 1);
+  return {
+    id,
+    jisx0401s: JSON.parse(
+        (await bucket.file(`work/${type}_jisx0401.json`).download())[0],
+    ),
+    jisx0402s: JSON.parse(
+        (await bucket.file(`work/${type}_jisx0402.json`).download())[0],
+    ),
+    zips: JSON.parse(
+        (await bucket.file(`work/${type}_zips.json`).download())[0],
+    ),
+  };
+}
+
+/**
  * Get and parse ken_all.zip
  * @param {Object} firebase Firebase API
+ * @param {string} id ID of the source file
  * @return {Promise} void
  */
-async function kenAll(firebase) {
-  const {id, csvReader} = await fetchZip(
-      firebase, "k", URL_K_PAGE, URL_K_ZIP,
-  );
-
-  if (!csvReader) {
-    return;
-  }
+async function parseSourceK(firebase, id) {
+  const csvReader = await getSourceData(firebase, id);
 
   let jisx0401 = "";
   const jisx0401s = [];
@@ -267,22 +326,18 @@ async function kenAll(firebase) {
   }
 
   await saveParsed(firebase, id, jisx0401s, jisx0402s, zips);
+
+  return {id, jisx0401s, jisx0402s, zips};
 }
 
 /**
  * Get and parse jigyosyo.zip
  * @param {Object} firebase Firebase API
+ * @param {string} id ID of the source file
  * @return {Promise} void
  */
-async function jigyosyo(firebase) {
-  const {id, csvReader} = await fetchZip(
-      firebase, "j", URL_J_PAGE, URL_J_ZIP,
-  );
-
-  if (!csvReader) {
-    return;
-  }
-
+async function parseSourceJ(firebase, id) {
+  const csvReader = await getSourceData(firebase, id);
 
   let jisx0401 = "";
   const jisx0401s = [];
@@ -330,62 +385,8 @@ async function jigyosyo(firebase) {
   }
 
   await saveParsed(firebase, id, jisx0401s, jisx0402s, zips);
-}
 
-/**
- * Merge JIS X 0401 and 0402 of ken_all and jigyosyo.zip
- * @param {Object} firebase Firebase API
- * @return {Promise} void
- */
-async function mergeJisx040x(firebase) {
-  const {db, bucket, logger} = firebase;
-
-  const info = await db.collection(COLLECTION_ZIP)
-      .orderBy("parsedAt", "desc")
-      .limit(1).get();
-
-  if (!info.docs || info.docs[0].get("mergedJisx040xAt")) {
-    return;
-  }
-
-  const kJisx0401 = await JSON.parse(
-      await bucket.file("work/k_jisx0401.json").download(),
-  );
-  const jJisx0401 = await JSON.parse(
-      await bucket.file("work/j_jisx0401.json").download(),
-  );
-
-  await bucket.file("jisx0401.json").save(JSON.stringify([
-    ...kJisx0401,
-    ...jJisx0401
-        .filter((item) => !kJisx0401.some((comp) => comp.code === item.code)),
-  ]));
-
-  await bucket.file("jisx0401.json").makePublic();
-
-
-  logger.info("merged: jisx0401.json");
-
-  const kJisx0402 = await JSON.parse(
-      await bucket.file("work/k_jisx0402.json").download(),
-  );
-  const jJisx0402 = await JSON.parse(
-      await bucket.file("work/j_jisx0402.json").download(),
-  );
-
-  await bucket.file("jisx0402.json").save(JSON.stringify([
-    ...kJisx0402,
-    ...jJisx0402
-        .filter((item) => !kJisx0402.some((comp) => comp.code === item.code)),
-  ]));
-
-  await bucket.file("jisx0402.json").makePublic();
-
-  logger.info("merged: jisx0402.json");
-
-  await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
-    mergedJisx040xAt: new Date(),
-  });
+  return {id, jisx0401s, jisx0402s, zips};
 }
 
 /**
@@ -417,55 +418,50 @@ function reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j) {
       zip1,
       items: zip2s.reduce(
           function(ret, zip2) {
-            try {
-              let jisx0402 = "";
-              let addr1 = "";
-              let addr2 = "";
-              let name = "";
+            let jisx0402 = "";
+            let addr1 = "";
+            let addr2 = "";
+            let name = "";
 
-              [
-                ...((k[zip1] || [])[zip2] || []),
-                ...((j[zip1] || [])[zip2] || []),
-              ].forEach(
-                  function(item, index) {
-                    if (index === 0) {
-                      jisx0402 = item.jisx0402 || "";
-                      addr1 = item.addr1 || "";
-                      addr2 = item.addr2 || "";
-                      name = item.name || "";
-                    } else {
-                      if (jisx0402 !== item.jisx0402) {
-                        jisx0402 = "";
-                      }
-                      if (addr1 !== item.addr1) {
-                        if (addr1.startsWith(item.addr1)) {
-                          addr1 = item.addr1;
-                        } else if (!item.addr1.startsWith(addr1)) {
-                          addr1 = "";
-                        }
-                      }
-                      if (addr2 !== item.addr2) {
-                        addr2 = "";
-                      }
-                      if (name !== item.name) {
-                        name = "";
+            [
+              ...((k[zip1] || [])[zip2] || []),
+              ...((j[zip1] || [])[zip2] || []),
+            ].forEach(
+                function(item, index) {
+                  if (index === 0) {
+                    jisx0402 = item.jisx0402 || "";
+                    addr1 = item.addr1 || "";
+                    addr2 = item.addr2 || "";
+                    name = item.name || "";
+                  } else {
+                    if (jisx0402 !== item.jisx0402) {
+                      jisx0402 = "";
+                    }
+                    if (addr1 !== item.addr1) {
+                      if (addr1.startsWith(item.addr1)) {
+                        addr1 = item.addr1;
+                      } else if (!item.addr1.startsWith(addr1)) {
+                        addr1 = "";
                       }
                     }
-                  },
-              );
+                    if (addr2 !== item.addr2) {
+                      addr2 = "";
+                    }
+                    if (name !== item.name) {
+                      name = "";
+                    }
+                  }
+                },
+            );
 
-              const pref = (jisx0401s.find(
-                  (item) => item.code === jisx0402.slice(0, 2),
-              ) || {name: ""}).name;
-              const city = (jisx0402s.find(
-                  (item) => item.code === jisx0402,
-              ) || {name: ""}).name;
+            const pref = (jisx0401s.find(
+                (item) => item.code === jisx0402.slice(0, 2),
+            ) || {name: ""}).name;
+            const city = (jisx0402s.find(
+                (item) => item.code === jisx0402,
+            ) || {name: ""}).name;
 
-              return {...ret, [zip2]: {pref, city, addr1, addr2, name}};
-            } catch (e) {
-              logger.error(e);
-              return null;
-            }
+            return {...ret, [zip2]: {pref, city, addr1, addr2, name}};
           },
           {},
       ),
@@ -473,121 +469,53 @@ function reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j) {
   };
 }
 
-const margeSource = async (bucket) => ({
-  jisx0401s: JSON.parse(await bucket.file("jisx0401.json").download()),
-  jisx0402s: JSON.parse(await bucket.file("jisx0402.json").download()),
-  k: JSON.parse(await bucket.file("work/k_zips.json").download()),
-  j: JSON.parse(await bucket.file("work/j_zips.json").download()),
-});
-
 /**
- * Merge data of ken_all and jigyosyo.zip.
+ * Parse sources
  * @param {Object} firebase Firebase API
- * @param {String} prefix prefix of zip code of target
+ * @param {Object} data {k, j}
  * @return {Promise} void
  */
-async function mergeSimpleZips(firebase, prefix) {
-  const {db, bucket, logger} = firebase;
+async function parseSources(firebase, data) {
+  const {db, bucket, functions, logger} = firebase;
 
-  const info = await db.collection(COLLECTION_ZIP)
-      .orderBy("mergedJisx040xAt", "desc")
-      .limit(1).get();
-
-  if (!info.docs || info.docs[0].get(`mergeSimpleZips${prefix}At`)) {
+  if (data.k.parsedAt && data.j.parsedAt) {
     return;
   }
 
-  const {jisx0401s, jisx0402s, k, j} = await margeSource(bucket);
+  logger.info(`k: ${data.k.id}, j: ${data.j.id}`);
 
-  await mergeArrays(Object.keys(k), Object.keys(j))
-      .filter((zip1) => zip1.startsWith(prefix))
-      .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
-      .reduce(
-          async function(ret, cur) {
-            await ret;
-            if (cur) {
-              const {zip1, items} = cur;
-              const file = bucket.file(`simple/${zip1}.json`);
-              await file.save(JSON.stringify(items));
-              await file.makePublic();
-            }
-            return null;
-          },
-          Promise.resolve(),
-      );
+  const parsedK = data.k.parsedAt ?
+    await getParsedData(firebase, data.k.id) :
+    await parseSourceK(firebase, data.k.id);
+  const parsedJ = data.j.parsedAt ?
+    await getParsedData(firebase, data.j.id) :
+    await parseSourceJ(firebase, data.j.id);
 
-  logger.info(`merged: simple/${prefix}??.json`);
+  const jisx0401s = [
+    ...parsedK.jisx0401s,
+    ...parsedJ.jisx0401s.filter(
+        (item) => !parsedK.jisx0401s.some((comp) => comp.code === item.code),
+    ),
+  ];
 
-  await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
-    [`mergeSimpleZips${prefix}At`]: new Date(),
-  });
-}
+  await bucket.file("jisx0401.json").save(JSON.stringify(jisx0401s));
+  await bucket.file("jisx0401.json").makePublic();
+  logger.info("merged: jisx0401.json");
 
-// /**
-//  * Merge data of ken_all and jigyosyo.zip and create an archive.
-//  * @param {Object} firebase Firebase API
-//  * @return {Promise} void
-//  */
-// async function archiveSimpleZips(firebase) {
-//   const {db, bucket, logger} = firebase;
+  const jisx0402s = [
+    ...parsedK.jisx0402s,
+    ...parsedJ.jisx0402s.filter(
+        (item) => !parsedK.jisx0402s.some((comp) => comp.code === item.code),
+    ),
+  ];
 
-//   const info = await db.collection(COLLECTION_ZIP)
-//       .orderBy("mergedJisx040xAt", "desc")
-//       .limit(1).get();
+  await bucket.file("jisx0402.json").save(JSON.stringify(jisx0402s));
+  await bucket.file("jisx0402.json").makePublic();
+  logger.info("merged: jisx0402.json");
 
-//   if (!info.docs || info.docs[0].get("archiveSimpleZipsAt")) {
-//     return;
-//   }
+  const k = parsedK.zips;
+  const j = parsedJ.zips;
 
-//   const {jisx0401s, jisx0402s, k, j} = await margeSource(bucket);
-
-//   const zip = new JSZip();
-
-//   mergeArrays(Object.keys(k), Object.keys(j))
-//       .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
-//       .forEach(
-//           function({zip1, items}) {
-//             Object.keys(items).forEach(
-//                 function(zip2) {
-//                   zip.file(
-//                       `${zip1}${zip2}.json`,
-//                       JSON.stringify(items[zip2]),
-//                   );
-//                 },
-//             );
-//           },
-//       );
-
-//   const zipData = await zip.generateAsync({type: "uint8array"});
-//   const file = bucket.file("simple.zip");
-//   await file.save(zipData);
-
-//   logger.info("save: simple.zip");
-
-//   await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
-//     archiveSimpleZipsAt: new Date(),
-//   });
-// }
-
-/**
- * Merge data of ken_all and jigyosyo.zip and create an archive.
- * @param {Object} firebase Firebase API
- * @return {Promise} void
- */
-async function mergeSimple(firebase) {
-  const {db, bucket, logger} = firebase;
-
-  const info = await db.collection(COLLECTION_ZIP)
-      .orderBy("mergedJisx040xAt", "desc")
-      .limit(1).get();
-
-  if (!info.docs || info.docs[0].get("mergeSimpleAt")) {
-    return;
-  }
-
-  const {jisx0401s, jisx0402s, k, j} = await margeSource(bucket);
-
-  const data = [];
   const records = [];
 
   mergeArrays(Object.keys(k), Object.keys(j))
@@ -597,7 +525,6 @@ async function mergeSimple(firebase) {
             Object.keys(items).forEach(
                 function(zip2) {
                   const zip = `${zip1}${zip2}`;
-                  data.push({zip, ...items[zip2]});
                   const {pref, city, addr1, addr2, name} = items[zip2];
                   records.push([zip, pref, city, addr1, addr2, name]);
                 },
@@ -612,7 +539,7 @@ async function mergeSimple(firebase) {
       })),
   ));
 
-  logger.info("save: simple.json");
+  logger.info("saved: simple.json");
 
   const csvOptions = {
     quoted: true,
@@ -623,12 +550,16 @@ async function mergeSimple(firebase) {
   const csvUtf8 = bucket.file("simple_utf8.csv");
   await csvUtf8.save(stringify(records, csvOptions));
 
-  logger.info("save: simple_utf8.csv");
+  logger.info("saved: simple_utf8.csv");
 
   const csvSjis = bucket.file("simple_sjis.csv");
-  await csvSjis.save(iconv.encode(stringify(records, csvOptions), "Shift_JIS"));
+  await csvSjis.save(
+      iconv.encode(
+          stringify(records, csvOptions), "Shift_JIS",
+      ),
+  );
 
-  logger.info("save: simple_sjis.csv");
+  logger.info("saved: simple_sjis.csv");
 
   const zipImage = new JSZip();
 
@@ -645,18 +576,89 @@ async function mergeSimple(firebase) {
   const file = bucket.file("simple.zip");
   await file.save(zipData);
 
-  logger.info("save: simple.zip");
+  logger.info("saved: simple.zip");
 
-  await db.collection(COLLECTION_ZIP).doc(info.docs[0].id).update({
-    mergeSimpleAt: new Date(),
+  const ts = new Date();
+  const prefix = ts.toISOString().replace(/[^0-9]/g, "");
+
+  const saveHistory = (path) =>
+    bucket.file(path).copy(bucket.file(`history/${prefix}_${path}`));
+
+  await bucket.file("update.txt").save(prefix);
+  await saveHistory("simple.json");
+  await saveHistory("simple_utf8.csv");
+  await saveHistory("simple_sjis.csv");
+  await saveHistory("simple.zip");
+
+  await Promise.all(
+      Array.from(Array(10).keys())
+          .map((prefix) => `${prefix}`)
+          .map((prefix) => functions
+              .taskQueue(
+                  `locations/${region}/functions/generateSample`,
+              ).enqueue({
+                k: {id: data.k.id},
+                j: {id: data.j.id},
+                prefix,
+              }),
+          ),
+  );
+
+  await db.collection(COLLECTION_SOURCE).doc(parsedK.id).update({
+    mergedAt: ts,
+  });
+
+  await db.collection(COLLECTION_SOURCE).doc(parsedJ.id).update({
+    mergedAt: ts,
+  });
+}
+
+/**
+ * Generate sample json files.
+ * @param {Object} firebase Firebase API
+ * @param {Object} data {k, j, prefix}
+ * @return {Promise} void
+ */
+async function generateSample(firebase, data) {
+  const {db, bucket, logger} = firebase;
+
+  const jisx0401s= JSON.parse(await bucket.file("jisx0401.json").download());
+  const jisx0402s= JSON.parse(await bucket.file("jisx0402.json").download());
+  const k= JSON.parse(await bucket.file("work/k_zips.json").download());
+  const j= JSON.parse(await bucket.file("work/j_zips.json").download());
+
+  await mergeArrays(Object.keys(k), Object.keys(j))
+      .filter((zip1) => zip1.startsWith(data.prefix))
+      .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
+      .reduce(
+          async function(ret, cur) {
+            await ret;
+            if (cur) {
+              const {zip1, items} = cur;
+              const file = bucket.file(`simple/${zip1}.json`);
+              await file.save(JSON.stringify(items));
+              await file.makePublic();
+            }
+            return null;
+          },
+          Promise.resolve(),
+      );
+
+  logger.info(`generated: simple/${data.prefix}??.json`);
+
+  const ts = new Date();
+
+  await db.collection(COLLECTION_SOURCE).doc(data.k.id).update({
+    [`generatedSample${data.prefix}At`]: ts,
+  });
+
+  await db.collection(COLLECTION_SOURCE).doc(data.j.id).update({
+    [`generatedSample${data.prefix}At`]: ts,
   });
 }
 
 module.exports = {
-  kenAll,
-  jigyosyo,
-  mergeJisx040x,
-  mergeSimpleZips,
-  mergeSimple,
-  // archiveSimpleZips,
+  getSources,
+  parseSources,
+  generateSample,
 };

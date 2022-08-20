@@ -1,6 +1,20 @@
 {
   "indexes": [
     {
+      "collectionGroup": "sources",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "savedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "zips",
       "queryScope": "COLLECTION",
       "fields": [
