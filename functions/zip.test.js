@@ -396,6 +396,7 @@ describe("parseSources", function() {
       ["simple_sjis.csv"],
       ["simple.zip"],
       ["update.txt"],
+      ["update.txt"],
       // saveHistory
       ["simple.json"],
       [expect.stringMatching(/history\/[0-9]+_simple.json/)],
@@ -525,6 +526,7 @@ describe("parseSources", function() {
       ["simple_utf8.csv"],
       ["simple_sjis.csv"],
       ["simple.zip"],
+      ["update.txt"],
       ["update.txt"],
       // saveHistory
       ["simple.json"],
