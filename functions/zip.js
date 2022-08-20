@@ -585,6 +585,8 @@ async function parseSources(firebase, data) {
     bucket.file(path).copy(bucket.file(`history/${prefix}_${path}`));
 
   await bucket.file("update.txt").save(prefix);
+  await bucket.file("update.txt").makePublic();
+
   await saveHistory("simple.json");
   await saveHistory("simple_utf8.csv");
   await saveHistory("simple_sjis.csv");
