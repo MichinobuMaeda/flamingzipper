@@ -665,7 +665,7 @@ async function generateSample(firebase, data) {
  * @param {Object} config The runtime configuration of Functions
  * @return {Promise} void
  */
-async function reporStatus(firebase, config) {
+async function reportStatus(firebase, config) {
   const {db, logger} = firebase;
 
   const ts = new Date();
@@ -752,5 +752,5 @@ module.exports = {
   getSources,
   parseSources,
   generateSample,
-  reporStatus,
+  reportStatus,
 };

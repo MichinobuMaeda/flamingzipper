@@ -12,7 +12,7 @@ const {
   getSources,
   parseSources,
   generateSample,
-  reporStatus,
+  reportStatus,
 } = require("./zip");
 
 const {
@@ -682,11 +682,11 @@ describe("generateSample", function() {
 
 const createTimestamp = (str) => ({toDate: () => new Date(str)});
 
-describe("reporStatus", function() {
+describe("reportStatus", function() {
   it("ignores data older than 24 hours.", async function() {
     mockQueryRef.get.mockResolvedValueOnce({docs: []});
 
-    await reporStatus(firebase, {email: {sender: "sender@example.com"}});
+    await reportStatus(firebase, {email: {sender: "sender@example.com"}});
 
     expect(mockCollectionRef.where.mock.calls).toEqual([
       ["savedAt", ">=", expect.anything()],
@@ -728,7 +728,7 @@ describe("reporStatus", function() {
         .mockResolvedValueOnce(admins)
         .mockResolvedValueOnce(admin);
 
-    await reporStatus(firebase, {email: {sender}});
+    await reportStatus(firebase, {email: {sender}});
 
     expect(mockCollectionRef.where.mock.calls).toEqual([
       ["savedAt", ">=", expect.anything()],
@@ -809,7 +809,7 @@ generatedSample9At: 2022-01-01T03:02:09.000Z
         .mockResolvedValueOnce(admins)
         .mockResolvedValueOnce(admin);
 
-    await reporStatus(firebase, {email: {sender}});
+    await reportStatus(firebase, {email: {sender}});
 
     expect(mockCollectionRef.where.mock.calls).toEqual([
       ["savedAt", ">=", expect.anything()],

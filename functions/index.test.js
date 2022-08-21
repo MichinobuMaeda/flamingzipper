@@ -106,10 +106,10 @@ describe("generateSample", function() {
   });
 });
 
-describe("reporStatus", function() {
-  it("calls reporStatus()", function() {
-    const wrapped = test.wrap(index.reporStatus);
+describe("reportStatus", function() {
+  it("calls reportStatus()", function() {
+    const wrapped = test.wrap(index.reportStatus);
     wrapped();
-    expect(zip.reporStatus.mock.calls).toHaveLength(1);
+    expect(zip.reportStatus.mock.calls).toHaveLength(1);
   });
 });
