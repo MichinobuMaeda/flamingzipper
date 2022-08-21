@@ -12,6 +12,7 @@ const {
   getSources,
   parseSources,
   generateSample,
+  reporStatus,
 } = require("./zip");
 
 const timeoutSeconds = 300;
@@ -67,3 +68,7 @@ exports.generateSample = functions.region(region)
     .runWith({timeoutSeconds})
     .tasks.taskQueue()
     .onDispatch((data) => generateSample(firebase, data));
+
+exports.reporStatus = functions.region(region)
+    .pubsub.schedule("57 3 * * *").timeZone(timeZone)
+    .onRun(() => reporStatus(firebase, functions.config()));

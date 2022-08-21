@@ -130,3 +130,13 @@ $ npx firebase deploy --only functions
 
 $ gsutil cors set cors.json gs://flamingzipper.appspot.com
 ````
+
+https://console.firebase.google.com/
+
+- Edtensions
+    - Trigger Email
+        - Install
+
+```
+$ npx firebase functions:config:set mail.sender=...
+```

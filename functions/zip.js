@@ -659,8 +659,98 @@ async function generateSample(firebase, data) {
   });
 }
 
+/**
+ * Report status of getSources, parseSources and generateSample.
+ * @param {Object} firebase Firebase API
+ * @param {Object} config The runtime configuration of Functions
+ * @return {Promise} void
+ */
+async function reporStatus(firebase, config) {
+  const {db, logger} = firebase;
+
+  const ts = new Date();
+
+  const records = await db.collection(COLLECTION_SOURCE)
+      .where("savedAt", ">=", new Date(ts.getTime() - 24 * 3600 * 1000))
+      .orderBy("savedAt", "asc")
+      .get();
+
+  if (!records.docs.length) {
+    return;
+  }
+
+  const fields = [
+    "savedAt",
+    "parsedAt",
+    "mergedAt",
+    "generatedSample0At",
+    "generatedSample1At",
+    "generatedSample2At",
+    "generatedSample3At",
+    "generatedSample4At",
+    "generatedSample5At",
+    "generatedSample6At",
+    "generatedSample7At",
+    "generatedSample8At",
+    "generatedSample9At",
+  ];
+
+  let status = "SUCCESS";
+  const report = [];
+
+  records.docs.forEach(
+      function(rec) {
+        report.push("--");
+        report.push(`id: ${rec.id}`);
+        fields.forEach(
+            function(field) {
+              const val = rec.get(field);
+              if (val && val.toDate) {
+                report.push(`${field}: ${val.toDate().toISOString()}`);
+              } else {
+                report.push(`${field}: error`);
+                status = "ERROR";
+              }
+            },
+        );
+        report.push("--");
+      },
+  );
+
+  logger.info(`status: ${status}`);
+
+  const admins = await db.collection("groups").doc("admins").get();
+  const to = (await Promise.all(
+      admins.get("accounts").map(
+          async function(id) {
+            const account = await db.collection("accounts").doc(id).get();
+            return account.get("email");
+          },
+      ),
+  )).filter((email) => email);
+
+  if (!to.length) {
+    to.push(config.email.sender);
+  }
+  const subject = `[flamingzipper] status: ${status}`;
+  const text = `
+${ts.toISOString()}
+${report.join("\n")}
+`;
+
+  await db.collection("mail")
+      .doc(ts.toISOString().replace(/[^0-9]/g, ""))
+      .set({
+        to,
+        message: {subject, text},
+        type: "status",
+        createdAt: ts,
+      });
+}
+
 module.exports = {
   getSources,
   parseSources,
   generateSample,
+  reporStatus,
 };

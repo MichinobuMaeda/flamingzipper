@@ -12,6 +12,7 @@ const {
   getSources,
   parseSources,
   generateSample,
+  reporStatus,
 } = require("./zip");
 
 const {
@@ -19,11 +20,10 @@ const {
   mockDoc,
   mockDocRef,
   mockQueryRef,
+  mockCollectionRef,
   mockBucketFile,
   mockBucketFileSave,
-  // mockBucketFileExists,
   mockBucketFileDownload,
-  // mockBucketFileMakePublic,
   mockTaskQueue,
 } = createMockFirebase(jest);
 
@@ -677,5 +677,187 @@ describe("generateSample", function() {
     expect(output).toEqual(
         JSON.parse(await readFile(path.join(pathData, "simple.json"))),
     );
+  });
+});
+
+const createTimestamp = (str) => ({toDate: () => new Date(str)});
+
+describe("reporStatus", function() {
+  it("ignores data older than 24 hours.", async function() {
+    mockQueryRef.get.mockResolvedValueOnce({docs: []});
+
+    await reporStatus(firebase, {email: {sender: "sender@example.com"}});
+
+    expect(mockCollectionRef.where.mock.calls).toEqual([
+      ["savedAt", ">=", expect.anything()],
+    ]);
+
+    expect(mockQueryRef.orderBy.mock.calls).toEqual([
+      ["savedAt", "asc"],
+    ]);
+
+    expect(firebase.logger.info.mock.calls).toEqual([]);
+  });
+
+  it("saved email data status: 'SUCCESS'" +
+    " for record without error.", async function() {
+    const sender = "sender@example.com";
+    const info1 = createFirestoreDocSnapMock(jest, "test1");
+    info1.data.mockReturnValue({
+      "savedAt": createTimestamp("2022-01-01T03:01:00.000Z"),
+      "parsedAt": createTimestamp("2022-01-01T03:01:01.000Z"),
+      "mergedAt": createTimestamp("2022-01-01T03:01:02.000Z"),
+      "generatedSample0At": createTimestamp("2022-01-01T03:02:00.000Z"),
+      "generatedSample1At": createTimestamp("2022-01-01T03:02:01.000Z"),
+      "generatedSample2At": createTimestamp("2022-01-01T03:02:02.000Z"),
+      "generatedSample3At": createTimestamp("2022-01-01T03:02:03.000Z"),
+      "generatedSample4At": createTimestamp("2022-01-01T03:02:04.000Z"),
+      "generatedSample5At": createTimestamp("2022-01-01T03:02:05.000Z"),
+      "generatedSample6At": createTimestamp("2022-01-01T03:02:06.000Z"),
+      "generatedSample7At": createTimestamp("2022-01-01T03:02:07.000Z"),
+      "generatedSample8At": createTimestamp("2022-01-01T03:02:08.000Z"),
+      "generatedSample9At": createTimestamp("2022-01-01T03:02:09.000Z"),
+    });
+    const admins = createFirestoreDocSnapMock(jest, "admins");
+    const admin = createFirestoreDocSnapMock(jest, "admin");
+    admins.data.mockReturnValue({accounts: ["admin"]});
+    admin.data.mockReturnValue({});
+    mockQueryRef.get
+        .mockResolvedValueOnce({docs: [info1]});
+    mockDocRef.get
+        .mockResolvedValueOnce(admins)
+        .mockResolvedValueOnce(admin);
+
+    await reporStatus(firebase, {email: {sender}});
+
+    expect(mockCollectionRef.where.mock.calls).toEqual([
+      ["savedAt", ">=", expect.anything()],
+    ]);
+
+    expect(mockQueryRef.orderBy.mock.calls).toEqual([
+      ["savedAt", "asc"],
+    ]);
+
+    expect(mockDoc.mock.calls).toEqual([
+      ["admins"],
+      ["admin"],
+      [expect.stringMatching(/^[0-9]+$/)],
+    ]);
+
+    expect(mockDocRef.set.mock.calls).toEqual([
+      [
+        {
+          to: [sender],
+          message: {
+            subject: "[flamingzipper] status: SUCCESS",
+            text: expect.stringContaining(`
+--
+id: test1
+savedAt: 2022-01-01T03:01:00.000Z
+parsedAt: 2022-01-01T03:01:01.000Z
+mergedAt: 2022-01-01T03:01:02.000Z
+generatedSample0At: 2022-01-01T03:02:00.000Z
+generatedSample1At: 2022-01-01T03:02:01.000Z
+generatedSample2At: 2022-01-01T03:02:02.000Z
+generatedSample3At: 2022-01-01T03:02:03.000Z
+generatedSample4At: 2022-01-01T03:02:04.000Z
+generatedSample5At: 2022-01-01T03:02:05.000Z
+generatedSample6At: 2022-01-01T03:02:06.000Z
+generatedSample7At: 2022-01-01T03:02:07.000Z
+generatedSample8At: 2022-01-01T03:02:08.000Z
+generatedSample9At: 2022-01-01T03:02:09.000Z
+--
+`),
+          },
+          type: "status",
+          createdAt: expect.anything(),
+        },
+      ],
+    ]);
+
+    expect(firebase.logger.info.mock.calls).toEqual([
+      ["status: SUCCESS"],
+    ]);
+  });
+
+  it("saved email data status: 'ERROR'" +
+    " for record with error.", async function() {
+    const sender = "sender@example.com";
+    const info1 = createFirestoreDocSnapMock(jest, "test1");
+    info1.data.mockReturnValue({
+      "savedAt": createTimestamp("2022-01-01T03:01:00.000Z"),
+      "parsedAt": createTimestamp("2022-01-01T03:01:01.000Z"),
+      "mergedAt": createTimestamp("2022-01-01T03:01:02.000Z"),
+      "generatedSample0At": createTimestamp("2022-01-01T03:02:00.000Z"),
+      "generatedSample1At": createTimestamp("2022-01-01T03:02:01.000Z"),
+      "generatedSample2At": createTimestamp("2022-01-01T03:02:02.000Z"),
+      "generatedSample3At": createTimestamp("2022-01-01T03:02:03.000Z"),
+      "generatedSample4At": createTimestamp("2022-01-01T03:02:04.000Z"),
+      "generatedSample5At": createTimestamp("2022-01-01T03:02:05.000Z"),
+      "generatedSample6At": createTimestamp("2022-01-01T03:02:06.000Z"),
+      // "generatedSample7At": createTimestamp("2022-01-01T03:02:07.000Z"),
+      "generatedSample8At": createTimestamp("2022-01-01T03:02:08.000Z"),
+      "generatedSample9At": createTimestamp("2022-01-01T03:02:09.000Z"),
+    });
+    const admins = createFirestoreDocSnapMock(jest, "admins");
+    const admin = createFirestoreDocSnapMock(jest, "admin");
+    admins.data.mockReturnValue({accounts: ["admin"]});
+    admin.data.mockReturnValue({});
+    mockQueryRef.get
+        .mockResolvedValueOnce({docs: [info1]});
+    mockDocRef.get
+        .mockResolvedValueOnce(admins)
+        .mockResolvedValueOnce(admin);
+
+    await reporStatus(firebase, {email: {sender}});
+
+    expect(mockCollectionRef.where.mock.calls).toEqual([
+      ["savedAt", ">=", expect.anything()],
+    ]);
+
+    expect(mockQueryRef.orderBy.mock.calls).toEqual([
+      ["savedAt", "asc"],
+    ]);
+
+    expect(mockDoc.mock.calls).toEqual([
+      ["admins"],
+      ["admin"],
+      [expect.stringMatching(/^[0-9]+$/)],
+    ]);
+
+    expect(mockDocRef.set.mock.calls).toEqual([
+      [
+        {
+          to: [sender],
+          message: {
+            subject: "[flamingzipper] status: ERROR",
+            text: expect.stringContaining(`
+--
+id: test1
+savedAt: 2022-01-01T03:01:00.000Z
+parsedAt: 2022-01-01T03:01:01.000Z
+mergedAt: 2022-01-01T03:01:02.000Z
+generatedSample0At: 2022-01-01T03:02:00.000Z
+generatedSample1At: 2022-01-01T03:02:01.000Z
+generatedSample2At: 2022-01-01T03:02:02.000Z
+generatedSample3At: 2022-01-01T03:02:03.000Z
+generatedSample4At: 2022-01-01T03:02:04.000Z
+generatedSample5At: 2022-01-01T03:02:05.000Z
+generatedSample6At: 2022-01-01T03:02:06.000Z
+generatedSample7At: error
+generatedSample8At: 2022-01-01T03:02:08.000Z
+generatedSample9At: 2022-01-01T03:02:09.000Z
+--
+`),
+          },
+          type: "status",
+          createdAt: expect.anything(),
+        },
+      ],
+    ]);
+
+    expect(firebase.logger.info.mock.calls).toEqual([
+      ["status: ERROR"],
+    ]);
   });
 });

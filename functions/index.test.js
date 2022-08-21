@@ -105,3 +105,11 @@ describe("generateSample", function() {
     expect(zip.generateSample.mock.calls).toHaveLength(1);
   });
 });
+
+describe("reporStatus", function() {
+  it("calls reporStatus()", function() {
+    const wrapped = test.wrap(index.reporStatus);
+    wrapped();
+    expect(zip.reporStatus.mock.calls).toHaveLength(1);
+  });
+});
