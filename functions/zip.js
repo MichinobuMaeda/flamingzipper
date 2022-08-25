@@ -73,32 +73,29 @@ async function getSources(firebase) {
     j: await getContent(URL_PAGE_J),
   };
 
-  if (doc.exists &&
-      curr.k && curr.j &&
-      pages.k.hash === curr.k.page &&
-      pages.j.hash === curr.j.page) {
+  if (pages.k.hash === curr?.k?.page && pages.j.hash === curr?.j?.page) {
     return;
   }
 
   const info = {
-    k: {...((curr && curr.k) || {})},
-    j: {...((curr && curr.j) || {})},
+    k: {...(curr?.k || {})},
+    j: {...(curr?.j || {})},
   }; // Deep copy
 
   const ts = new Date();
   let saved = false;
 
-  if (pages.k.hash !== curr.k.page) {
+  if (pages.k.hash !== curr?.k?.page) {
     const source = await getContent(URL_SOURCE_K);
-    if (source.hash !== curr.k.source) {
+    if (source.hash !== curr?.k?.source) {
       await saveSource(firebase, "k", ts, info, pages.k, source);
       saved = true;
     }
   }
 
-  if (pages.j.hash !== curr.j.page) {
+  if (pages.j.hash !== curr?.j?.page) {
     const source = await getContent(URL_SOURCE_J);
-    if (source.hash !== curr.j.source) {
+    if (source.hash !== curr?.j?.source) {
       await saveSource(firebase, "j", ts, info, pages.j, source);
       saved = true;
     }
@@ -108,9 +105,9 @@ async function getSources(firebase) {
     return;
   }
 
-  if (curr.k && curr.j) {
-    const history = curr.k.id.slice(1) > curr.j.id.slice(1) ?
-    `h${curr.k.id.slice(1)}` : `h${curr.j.id.slice(1)}`;
+  if (curr?.k && curr?.j) {
+    const history = (curr.k.id?.slice(1) ?? "") > (curr.j.id?.slice(1) ?? "") ?
+    `h${curr.k.id?.slice(1) ?? ""}` : `h${curr.j.id?.slice(1) ?? ""}`;
     await db.collection(COLLECTION_SOURCES).doc(history).set(curr);
   }
 
