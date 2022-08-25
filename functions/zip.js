@@ -80,7 +80,7 @@ async function getSources(firebase) {
     return;
   }
 
-  const info = {k: {...curr.k}, j: {...curr.j}}; // Deep copy
+  const info = {k: {...(curr.k || {})}, j: {...(curr.j || {})}}; // Deep copy
 
   const sources = {
     k: {hash: curr.k.hash},
@@ -110,9 +110,11 @@ async function getSources(firebase) {
     return;
   }
 
-  const history = curr.k.id.slice(1) > curr.j.id.slice(1) ?
+  if (curr.k && curr.j) {
+    const history = curr.k.id.slice(1) > curr.j.id.slice(1) ?
     `h${curr.k.id.slice(1)}` : `h${curr.j.id.slice(1)}`;
-  await db.collection(COLLECTION_SOURCES).doc(history).set(curr);
+    await db.collection(COLLECTION_SOURCES).doc(history).set(curr);
+  }
 
   await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).set(info);
   await setTaskQueue(functions, "parseSources", info);
