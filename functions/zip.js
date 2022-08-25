@@ -85,26 +85,21 @@ async function getSources(firebase) {
     j: {...((curr && curr.j) || {})},
   }; // Deep copy
 
-  const sources = {
-    k: {hash: curr.k.hash},
-    j: {hash: curr.j.hash},
-  };
-
   const ts = new Date();
   let saved = false;
 
   if (pages.k.hash !== curr.k.page) {
-    sources.k = await getContent(URL_SOURCE_K);
-    if (sources.k.hash !== curr.k.source) {
-      await saveSource(firebase, "k", ts, info, pages.k, sources.k);
+    const source = await getContent(URL_SOURCE_K);
+    if (source.hash !== curr.k.source) {
+      await saveSource(firebase, "k", ts, info, pages.k, source);
       saved = true;
     }
   }
 
   if (pages.j.hash !== curr.j.page) {
-    sources.j = await getContent(URL_SOURCE_J);
-    if (sources.j.hash !== curr.j.source) {
-      await saveSource(firebase, "j", ts, info, pages.j, sources.j);
+    const source = await getContent(URL_SOURCE_J);
+    if (source.hash !== curr.j.source) {
+      await saveSource(firebase, "j", ts, info, pages.j, source);
       saved = true;
     }
   }
