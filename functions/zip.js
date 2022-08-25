@@ -762,7 +762,7 @@ async function reportStatus(firebase, config) {
   )).filter((email) => email);
 
   if (!to.length) {
-    to.push(config.email.sender);
+    to.push(config.mail.sender);
   }
   const subject = `[flamingzipper] status: ${status}`;
   const text = `
