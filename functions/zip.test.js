@@ -19,8 +19,9 @@ const {
   firebase,
   mockDoc,
   mockDocRef,
-  mockQueryRef,
-  mockCollectionRef,
+  // mockQueryRef,
+  mockCollection,
+  // mockCollectionRef,
   mockBucketFile,
   mockBucketFileSave,
   mockBucketFileDownload,
@@ -33,6 +34,9 @@ const pathData = path.join(__dirname, "..", "test", "data");
 afterEach(async function() {
   jest.clearAllMocks();
 });
+
+const COLLECTION_SOURCES = "sources";
+const DOC_CURRENT = "current";
 
 /**
  * Test data: archives
@@ -89,17 +93,18 @@ describe("getSources", function() {
       pageHashJ,
     } = await createArchiveData();
 
-    const docK = createFirestoreDocSnapMock(jest, "k20200101000000000000");
-    const docJ = createFirestoreDocSnapMock(jest, "j20200101000000000000");
-    docK.data.mockReturnValue({
-      page: pageHashK,
+    const doc = createFirestoreDocSnapMock(jest, DOC_CURRENT);
+    doc.data.mockReturnValue({
+      k: {
+        id: "k20200101000000000000",
+        page: pageHashK,
+      },
+      j: {
+        id: "j20200101000000000001",
+        page: pageHashJ,
+      },
     });
-    docJ.data.mockReturnValue({
-      page: pageHashJ,
-    });
-    mockQueryRef.get
-        .mockResolvedValueOnce({docs: [docK]})
-        .mockResolvedValueOnce({docs: [docJ]});
+    mockDocRef.get.mockResolvedValueOnce(doc);
 
     axios.get
         .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataK)})
@@ -107,16 +112,15 @@ describe("getSources", function() {
 
     await getSources(firebase);
 
-    expect(mockTaskQueue.enqueue.mock.calls).toEqual([
-      [
-        {
-          k: {id: expect.stringMatching(/^k[0-9]+.$/)},
-          j: {id: expect.stringMatching(/^j[0-9]+.$/)},
-        },
-      ],
-    ]);
+    expect(mockCollection.mock.calls[0]).toEqual([COLLECTION_SOURCES]);
+    expect(mockDoc.mock.calls[0]).toEqual([DOC_CURRENT]);
 
-    expect(firebase.logger.info.mock.calls).toEqual([]);
+    expect(mockCollection.mock.calls).toHaveLength(1);
+    expect(mockDoc.mock.calls).toHaveLength(1);
+    expect(mockBucketFileSave.mock.calls).toHaveLength(0);
+    expect(mockDocRef.set.mock.calls).toHaveLength(0);
+    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(0);
+    expect(firebase.logger.info.mock.calls).toHaveLength(0);
   });
 
   it("ignores the zips with sum saved.", async function() {
@@ -129,38 +133,38 @@ describe("getSources", function() {
       zipHashJ,
     } = await createArchiveData();
 
-    const docK = createFirestoreDocSnapMock(jest, "k20200101000000000000");
-    const docJ = createFirestoreDocSnapMock(jest, "j20200101000000000000");
-    docK.data.mockReturnValue({
-      page: "test",
-      sum: zipHashK,
+    const doc = createFirestoreDocSnapMock(jest, DOC_CURRENT);
+    doc.data.mockReturnValue({
+      k: {
+        id: "k20200101000000000000",
+        page: "test",
+        source: zipHashK,
+      },
+      j: {
+        id: "j20200101000000000001",
+        page: "test",
+        source: zipHashJ,
+      },
     });
-    docJ.data.mockReturnValue({
-      page: "test",
-      sum: zipHashJ,
-    });
-    mockQueryRef.get
-        .mockResolvedValueOnce({docs: [docK]})
-        .mockResolvedValueOnce({docs: [docJ]});
+    mockDocRef.get.mockResolvedValueOnce(doc);
 
     axios.get
         .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataK)})
-        .mockResolvedValueOnce({data: zipDataK.buffer})
         .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataJ)})
+        .mockResolvedValueOnce({data: zipDataK.buffer})
         .mockResolvedValueOnce({data: zipDataJ.buffer});
 
     await getSources(firebase);
 
-    expect(mockTaskQueue.enqueue.mock.calls).toEqual([
-      [
-        {
-          k: {id: expect.stringMatching(/^k[0-9]+.$/)},
-          j: {id: expect.stringMatching(/^j[0-9]+.$/)},
-        },
-      ],
-    ]);
+    expect(mockCollection.mock.calls[0]).toEqual([COLLECTION_SOURCES]);
+    expect(mockDoc.mock.calls[0]).toEqual([DOC_CURRENT]);
 
-    expect(firebase.logger.info.mock.calls).toEqual([]);
+    expect(mockCollection.mock.calls).toHaveLength(1);
+    expect(mockDoc.mock.calls).toHaveLength(1);
+    expect(mockBucketFileSave.mock.calls).toHaveLength(0);
+    expect(mockDocRef.set.mock.calls).toHaveLength(0);
+    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(0);
+    expect(firebase.logger.info.mock.calls).toHaveLength(0);
   });
 
   it("gets new ken_all.zip without saved data.", async function() {
@@ -174,70 +178,81 @@ describe("getSources", function() {
       zipHashJ,
     } = await createArchiveData();
 
-    const docK = createFirestoreDocSnapMock(jest, "k20200101000000000000");
-    const docJ = createFirestoreDocSnapMock(jest, "j20200101000000000000");
-    docK.data.mockReturnValue({
-      page: "test",
-      sum: "test",
-      savedAt: new Date(),
-      parsedAt: new Date(),
-    });
-    docJ.data.mockReturnValue({
-      page: pageHashJ,
-      sum: zipHashJ,
-      savedAt: new Date(),
-      parsedAt: new Date(),
-    });
-    mockQueryRef.get
-        .mockResolvedValueOnce({docs: [docK]})
-        .mockResolvedValueOnce({docs: [docJ]});
+    const curr = {
+      k: {
+        id: "k20200101000000000000",
+        page: "test",
+        source: "test",
+        savedAt: new Date(),
+        parsedAt: new Date(),
+      },
+      j: {
+        id: "j20200101000000000001",
+        page: pageHashJ,
+        source: zipHashJ,
+        savedAt: new Date(),
+        parsedAt: new Date(),
+      },
+    };
+    const doc = createFirestoreDocSnapMock(jest, "current");
+    doc.data.mockReturnValue(curr);
+    mockDocRef.get.mockResolvedValueOnce(doc);
 
     axios.get
         .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataK)})
-        .mockResolvedValueOnce({data: zipDataK.buffer})
-        .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataJ)});
+        .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataJ)})
+        .mockResolvedValueOnce({data: zipDataK.buffer});
 
     await getSources(firebase);
 
-    expect(mockDoc.mock.calls).toEqual([
-      [expect.stringMatching(/^k/)],
-    ]);
 
-    expect(mockDocRef.set.mock.calls).toEqual([
-      [{
-        type: "k",
+    expect(mockCollection.mock.calls[0]).toEqual([COLLECTION_SOURCES]);
+    expect(mockDoc.mock.calls[0]).toEqual([DOC_CURRENT]);
+
+    expect(mockBucketFileSave.mock.calls[0]).toEqual(
+        [expect.any(Buffer)],
+    );
+
+    expect(firebase.logger.info.mock.calls[0]).toEqual(
+        [expect.stringMatching(/^saved: k[0-9]+$/)],
+    );
+
+    expect(mockCollection.mock.calls[1]).toEqual([COLLECTION_SOURCES]);
+    expect(mockDoc.mock.calls[1]).toEqual(["h20200101000000000001"]);
+    expect(mockDocRef.set.mock.calls[0]).toEqual([curr]);
+
+    const docNew = {
+      k: {
+        id: expect.stringMatching(/^k[0-9]+$/),
         page: pageHashK,
-        sum: zipHashK,
-        savedAt: expect.anything(),
-      }],
-    ]);
+        source: zipHashK,
+        savedAt: expect.any(Date),
+        parsedAt: null,
+      },
+      j: {
+        id: "j20200101000000000001",
+        page: pageHashJ,
+        source: zipHashJ,
+        savedAt: expect.any(Date),
+        parsedAt: expect.any(Date),
+      },
+    };
+    expect(mockCollection.mock.calls[2]).toEqual([COLLECTION_SOURCES]);
+    expect(mockDoc.mock.calls[2]).toEqual([DOC_CURRENT]);
+    expect(mockDocRef.set.mock.calls[1]).toEqual([docNew]);
 
-    expect(mockBucketFile.mock.calls).toEqual([
-      [expect.stringMatching(/^sources\/k[0-9]+.zip$/)],
-    ]);
+    expect(mockTaskQueue.enqueue.mock.calls[0]).toEqual([docNew]);
 
-    expect(mockBucketFileSave.mock.calls).toEqual([
-      [expect.anything()], // Buffer
-    ]);
+    expect(firebase.logger.info.mock.calls[1]).toEqual(
+        ["requestd: parseSources()"],
+    );
 
-    expect(firebase.logger.info.mock.calls).toEqual([
-      [expect.stringContaining("saved: k")],
-    ]);
-
-    expect(mockTaskQueue.enqueue.mock.calls).toEqual([
-      [
-        {
-          k: {
-            id: expect.stringMatching(/^k[0-9]+.$/),
-          },
-          j: {
-            id: expect.stringMatching(/^j[0-9]+.$/),
-            savedAt: expect.anything(),
-            parsedAt: expect.anything(),
-          },
-        },
-      ],
-    ]);
+    expect(mockCollection.mock.calls).toHaveLength(3);
+    expect(mockDoc.mock.calls).toHaveLength(3);
+    expect(mockDocRef.set.mock.calls).toHaveLength(2);
+    expect(mockBucketFileSave.mock.calls).toHaveLength(1);
+    expect(firebase.logger.info.mock.calls).toHaveLength(2);
+    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(1);
   });
 
   it("gets new jigyosyo.zip without saved data.", async function() {
@@ -251,23 +266,25 @@ describe("getSources", function() {
       zipHashJ,
     } = await createArchiveData();
 
-    const docK = createFirestoreDocSnapMock(jest, "k20200101000000000000");
-    const docJ = createFirestoreDocSnapMock(jest, "j20200101000000000000");
-    docK.data.mockReturnValue({
-      page: pageHashK,
-      sum: zipHashK,
-      savedAt: new Date(),
-      parsedAt: new Date(),
-    });
-    docJ.data.mockReturnValue({
-      page: "test",
-      sum: "test",
-      savedAt: new Date(),
-      parsedAt: new Date(),
-    });
-    mockQueryRef.get
-        .mockResolvedValueOnce({docs: [docK]})
-        .mockResolvedValueOnce({docs: [docJ]});
+    const curr = {
+      k: {
+        id: "k20200101000000000002",
+        page: pageHashK,
+        source: zipHashK,
+        savedAt: new Date(),
+        parsedAt: new Date(),
+      },
+      j: {
+        id: "j20200101000000000001",
+        page: "test",
+        source: "test",
+        savedAt: new Date(),
+        parsedAt: new Date(),
+      },
+    };
+    const doc = createFirestoreDocSnapMock(jest, "current");
+    doc.data.mockReturnValue(curr);
+    mockDocRef.get.mockResolvedValueOnce(doc);
 
     axios.get
         .mockResolvedValueOnce({data: new TextEncoder().encode(pageDataK)})
@@ -276,45 +293,54 @@ describe("getSources", function() {
 
     await getSources(firebase);
 
-    expect(mockDoc.mock.calls).toEqual([
-      [expect.stringMatching(/^j/)],
-    ]);
 
-    expect(mockDocRef.set.mock.calls).toEqual([
-      [{
-        type: "j",
+    expect(mockCollection.mock.calls[0]).toEqual([COLLECTION_SOURCES]);
+    expect(mockDoc.mock.calls[0]).toEqual([DOC_CURRENT]);
+
+    expect(mockBucketFileSave.mock.calls[0]).toEqual(
+        [expect.any(Buffer)],
+    );
+
+    expect(firebase.logger.info.mock.calls[0]).toEqual(
+        [expect.stringMatching(/^saved: j[0-9]+$/)],
+    );
+
+    expect(mockCollection.mock.calls[1]).toEqual([COLLECTION_SOURCES]);
+    expect(mockDoc.mock.calls[1]).toEqual(["h20200101000000000002"]);
+    expect(mockDocRef.set.mock.calls[0]).toEqual([curr]);
+
+    const docNew = {
+      k: {
+        id: "k20200101000000000002",
+        page: pageHashK,
+        source: zipHashK,
+        savedAt: expect.any(Date),
+        parsedAt: expect.any(Date),
+      },
+      j: {
+        id: expect.stringMatching(/^j[0-9]+$/),
         page: pageHashJ,
-        sum: zipHashJ,
-        savedAt: expect.anything(),
-      }],
-    ]);
+        source: zipHashJ,
+        savedAt: expect.any(Date),
+        parsedAt: null,
+      },
+    };
+    expect(mockCollection.mock.calls[2]).toEqual([COLLECTION_SOURCES]);
+    expect(mockDoc.mock.calls[2]).toEqual([DOC_CURRENT]);
+    expect(mockDocRef.set.mock.calls[1]).toEqual([docNew]);
 
-    expect(mockBucketFile.mock.calls).toEqual([
-      [expect.stringMatching(/^sources\/j[0-9]+.zip$/)],
-    ]);
+    expect(mockTaskQueue.enqueue.mock.calls[0]).toEqual([docNew]);
 
-    expect(mockBucketFileSave.mock.calls).toEqual([
-      [expect.anything()], // Buffer
-    ]);
+    expect(firebase.logger.info.mock.calls[1]).toEqual(
+        ["requestd: parseSources()"],
+    );
 
-    expect(firebase.logger.info.mock.calls).toEqual([
-      [expect.stringContaining("saved: j")],
-    ]);
-
-    expect(mockTaskQueue.enqueue.mock.calls).toEqual([
-      [
-        {
-          k: {
-            id: expect.stringMatching(/^k[0-9]+.$/),
-            savedAt: expect.anything(),
-            parsedAt: expect.anything(),
-          },
-          j: {
-            id: expect.stringMatching(/^j[0-9]+.$/),
-          },
-        },
-      ],
-    ]);
+    expect(mockCollection.mock.calls).toHaveLength(3);
+    expect(mockDoc.mock.calls).toHaveLength(3);
+    expect(mockDocRef.set.mock.calls).toHaveLength(2);
+    expect(mockBucketFileSave.mock.calls).toHaveLength(1);
+    expect(firebase.logger.info.mock.calls).toHaveLength(2);
+    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(1);
   });
 });
 
@@ -329,24 +355,26 @@ describe("parseSources", function() {
             parsedAt: new Date(),
           },
           j: {
-            id: "j20200101000000000000",
+            id: "j20200101000000000001",
             savedAt: new Date(),
             parsedAt: new Date(),
           },
         },
     );
 
-    expect(firebase.logger.info.mock.calls).toEqual([]);
-
-    expect(mockTaskQueue.enqueue.mock.calls).toEqual([]);
+    expect(mockBucketFile.mock.calls).toHaveLength(0);
+    expect(mockDoc.mock.calls).toHaveLength(0);
+    expect(mockDocRef.update.mock.calls).toHaveLength(0);
+    expect(firebase.logger.info.mock.calls).toHaveLength(0);
+    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(0);
   });
 
-  it("parses new ken_all.zip without parsed data.", async function() {
+  it("parses new ken_all.zip.", async function() {
     const {zipDataK} = await createArchiveData();
 
     mockBucketFileDownload
-        // getSourceInfo
-        .mockReturnValueOnce([Buffer.from(zipDataK)])
+        // getSourceData
+        .mockResolvedValueOnce([Buffer.from(zipDataK)])
         // getParsedData
         .mockResolvedValueOnce(
             [await readFile(path.join(pathData, "j_jisx0401.json"))])
@@ -361,9 +389,10 @@ describe("parseSources", function() {
           k: {
             id: "k20200101000000000000",
             savedAt: new Date(),
+            parsedAt: null,
           },
           j: {
-            id: "j20200101000000000000",
+            id: "j20200101000000000001",
             savedAt: new Date(),
             parsedAt: new Date(),
           },
@@ -409,15 +438,13 @@ describe("parseSources", function() {
     ]);
 
     expect(mockDoc.mock.calls).toEqual([
-      [expect.stringMatching(/^k/)],
-      [expect.stringMatching(/^k/)],
-      [expect.stringMatching(/^j/)],
+      ["current"],
+      ["current"],
     ]);
 
     expect(mockDocRef.update.mock.calls).toEqual([
-      [{parsedAt: expect.anything()}],
-      [{mergedAt: expect.anything()}],
-      [{mergedAt: expect.anything()}],
+      [{["k.parsedAt"]: expect.any(Date)}],
+      [{mergedAt: expect.any(Date)}],
     ]);
 
     expect(firebase.logger.info.mock.calls).toEqual([
@@ -430,35 +457,66 @@ describe("parseSources", function() {
       ["saved: simple_utf8.csv"],
       ["saved: simple_sjis.csv"],
       ["saved: simple.zip"],
+      ["requestd: generateSample()"],
     ]);
 
-    const saved101 = JSON.parse(mockBucketFileSave.mock.calls[3][0])
+    const orderBy = (field) => (a, b) => a[field] === b[field] ?
+          0 : a[field] < b[field] ? -1 : 1;
+
+    const saved101 = JSON.parse(mockBucketFileSave.mock.calls[0][0])
         .map((item) => ({code: item.code, name: item.name}));
     const comp101 = JSON
-        .parse(await readFile(path.join(pathData, "jisx0401.json")))
+        .parse(await readFile(path.join(pathData, "k_jisx0401.json")))
         .map((item) => ({code: item.code, name: item.name}));
-    const saved102 = JSON.parse(mockBucketFileSave.mock.calls[4][0])
+    const saved102 = JSON.parse(mockBucketFileSave.mock.calls[1][0])
         .map((item) => ({code: item.code, name: item.name}));
     const comp102 = JSON
-        .parse(await readFile(path.join(pathData, "jisx0402.json")))
+        .parse(await readFile(path.join(pathData, "k_jisx0402.json")))
         .map((item) => ({code: item.code, name: item.name}));
+    const savedZips = JSON.parse(mockBucketFileSave.mock.calls[2][0]);
+    const compZips = JSON
+        .parse(await readFile(path.join(pathData, "k_zips.json")));
 
-    const byCode = (a, b) => a.code === b.code ?
-        0 : a.code < b.code ? -1 : 1;
-
-    saved101.sort(byCode);
-    comp101.sort(byCode);
-    saved102.sort(byCode);
-    comp102.sort(byCode);
+    saved101.sort(orderBy("code"));
+    comp101.sort(orderBy("code"));
+    saved102.sort(orderBy("code"));
+    comp102.sort(orderBy("code"));
 
     expect(saved101).toEqual(comp101);
     expect(saved102).toEqual(comp102);
+    expect(savedZips).toEqual(compZips);
 
-    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(10);
+    const saved101Merged = JSON.parse(mockBucketFileSave.mock.calls[3][0])
+        .map((item) => ({code: item.code, name: item.name}));
+    const comp101Merged = JSON
+        .parse(await readFile(path.join(pathData, "jisx0401.json")))
+        .map((item) => ({code: item.code, name: item.name}));
+    const saved102Merged = JSON.parse(mockBucketFileSave.mock.calls[4][0])
+        .map((item) => ({code: item.code, name: item.name}));
+    const comp102Merged = JSON
+        .parse(await readFile(path.join(pathData, "jisx0402.json")))
+        .map((item) => ({code: item.code, name: item.name}));
+    const savedZipsMerged = JSON.parse(mockBucketFileSave.mock.calls[5][0]);
+    const compZipsMerged = JSON
+        .parse(await readFile(path.join(pathData, "simple.json")));
+
+    saved101Merged.sort(orderBy("code"));
+    comp101Merged.sort(orderBy("code"));
+    saved102Merged.sort(orderBy("code"));
+    comp102Merged.sort(orderBy("code"));
+    savedZipsMerged.sort(orderBy("zip"));
+    compZipsMerged.sort(orderBy("zip"));
+
+    expect(saved101Merged).toEqual(comp101Merged);
+    expect(saved102Merged).toEqual(comp102Merged);
+    expect(savedZipsMerged).toEqual(compZipsMerged);
+
+    expect(mockBucketFileSave.mock.calls).toHaveLength(10);
+
     expect(mockTaskQueue.enqueue.mock.calls[0]).toEqual([
       {
         k: {id: "k20200101000000000000"},
-        j: {id: "j20200101000000000000"},
+        j: {id: "j20200101000000000001"},
         prefix: "0",
       },
     ]);
@@ -466,13 +524,14 @@ describe("parseSources", function() {
     expect(mockTaskQueue.enqueue.mock.calls[9]).toEqual([
       {
         k: {id: "k20200101000000000000"},
-        j: {id: "j20200101000000000000"},
+        j: {id: "j20200101000000000001"},
         prefix: "9",
       },
     ]);
+    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(10);
   });
 
-  it("parses new jigyosyo.zip without parsed data.", async function() {
+  it("parses new jigyosyo.zip.", async function() {
     const {zipDataJ} = await createArchiveData();
 
     mockBucketFileDownload
@@ -483,8 +542,8 @@ describe("parseSources", function() {
             [await readFile(path.join(pathData, "k_jisx0402.json"))])
         .mockResolvedValueOnce(
             [await readFile(path.join(pathData, "k_zips.json"))])
-        // getSourceInfo
-        .mockReturnValueOnce([Buffer.from(zipDataJ)]);
+        // getSourceData
+        .mockResolvedValueOnce([Buffer.from(zipDataJ)]);
 
     await parseSources(
         firebase,
@@ -495,8 +554,9 @@ describe("parseSources", function() {
             parsedAt: new Date(),
           },
           j: {
-            id: "j20200101000000000000",
+            id: "j20200101000000000001",
             savedAt: new Date(),
+            parsedAt: null,
           },
         },
     );
@@ -540,15 +600,13 @@ describe("parseSources", function() {
     ]);
 
     expect(mockDoc.mock.calls).toEqual([
-      [expect.stringMatching(/^j/)],
-      [expect.stringMatching(/^k/)],
-      [expect.stringMatching(/^j/)],
+      ["current"],
+      ["current"],
     ]);
 
     expect(mockDocRef.update.mock.calls).toEqual([
-      [{parsedAt: expect.anything()}],
-      [{mergedAt: expect.anything()}],
-      [{mergedAt: expect.anything()}],
+      [{["j.parsedAt"]: expect.any(Date)}],
+      [{mergedAt: expect.any(Date)}],
     ]);
 
     expect(firebase.logger.info.mock.calls).toEqual([
@@ -561,35 +619,66 @@ describe("parseSources", function() {
       ["saved: simple_utf8.csv"],
       ["saved: simple_sjis.csv"],
       ["saved: simple.zip"],
+      ["requestd: generateSample()"],
     ]);
 
-    const saved101 = JSON.parse(mockBucketFileSave.mock.calls[3][0])
+    const orderBy = (field) => (a, b) => a[field] === b[field] ?
+            0 : a[field] < b[field] ? -1 : 1;
+
+    const saved101 = JSON.parse(mockBucketFileSave.mock.calls[0][0])
         .map((item) => ({code: item.code, name: item.name}));
     const comp101 = JSON
-        .parse(await readFile(path.join(pathData, "jisx0401.json")))
+        .parse(await readFile(path.join(pathData, "j_jisx0401.json")))
         .map((item) => ({code: item.code, name: item.name}));
-    const saved102 = JSON.parse(mockBucketFileSave.mock.calls[4][0])
+    const saved102 = JSON.parse(mockBucketFileSave.mock.calls[1][0])
         .map((item) => ({code: item.code, name: item.name}));
     const comp102 = JSON
-        .parse(await readFile(path.join(pathData, "jisx0402.json")))
+        .parse(await readFile(path.join(pathData, "j_jisx0402.json")))
         .map((item) => ({code: item.code, name: item.name}));
+    const savedZips = JSON.parse(mockBucketFileSave.mock.calls[2][0]);
+    const compZips = JSON
+        .parse(await readFile(path.join(pathData, "j_zips.json")));
 
-    const byCode = (a, b) => a.code === b.code ?
-        0 : a.code < b.code ? -1 : 1;
-
-    saved101.sort(byCode);
-    comp101.sort(byCode);
-    saved102.sort(byCode);
-    comp102.sort(byCode);
+    saved101.sort(orderBy("code"));
+    comp101.sort(orderBy("code"));
+    saved102.sort(orderBy("code"));
+    comp102.sort(orderBy("code"));
 
     expect(saved101).toEqual(comp101);
     expect(saved102).toEqual(comp102);
+    expect(savedZips).toEqual(compZips);
 
-    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(10);
+    const saved101Merged = JSON.parse(mockBucketFileSave.mock.calls[3][0])
+        .map((item) => ({code: item.code, name: item.name}));
+    const comp101Merged = JSON
+        .parse(await readFile(path.join(pathData, "jisx0401.json")))
+        .map((item) => ({code: item.code, name: item.name}));
+    const saved102Merged = JSON.parse(mockBucketFileSave.mock.calls[4][0])
+        .map((item) => ({code: item.code, name: item.name}));
+    const comp102Merged = JSON
+        .parse(await readFile(path.join(pathData, "jisx0402.json")))
+        .map((item) => ({code: item.code, name: item.name}));
+    const savedZipsMerged = JSON.parse(mockBucketFileSave.mock.calls[5][0]);
+    const compZipsMerged = JSON
+        .parse(await readFile(path.join(pathData, "simple.json")));
+
+    saved101Merged.sort(orderBy("code"));
+    comp101Merged.sort(orderBy("code"));
+    saved102Merged.sort(orderBy("code"));
+    comp102Merged.sort(orderBy("code"));
+    savedZipsMerged.sort(orderBy("zip"));
+    compZipsMerged.sort(orderBy("zip"));
+
+    expect(saved101Merged).toEqual(comp101Merged);
+    expect(saved102Merged).toEqual(comp102Merged);
+    expect(savedZipsMerged).toEqual(compZipsMerged);
+
+    expect(mockBucketFileSave.mock.calls).toHaveLength(10);
+
     expect(mockTaskQueue.enqueue.mock.calls[0]).toEqual([
       {
         k: {id: "k20200101000000000000"},
-        j: {id: "j20200101000000000000"},
+        j: {id: "j20200101000000000001"},
         prefix: "0",
       },
     ]);
@@ -597,10 +686,11 @@ describe("parseSources", function() {
     expect(mockTaskQueue.enqueue.mock.calls[9]).toEqual([
       {
         k: {id: "k20200101000000000000"},
-        j: {id: "j20200101000000000000"},
+        j: {id: "j20200101000000000001"},
         prefix: "9",
       },
     ]);
+    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(10);
   });
 });
 
@@ -628,7 +718,7 @@ describe("generateSample", function() {
 
     const data = {
       k: {id: "k20200101000000000000"},
-      j: {id: "j20200101000000000000"},
+      j: {id: "j20200101000000000001"},
     };
     await generateSample(firebase, {...data, prefix: "0"});
     await generateSample(firebase, {...data, prefix: "1"});
@@ -671,11 +761,11 @@ describe("generateSample", function() {
     );
 
     // await writeFile(
-    //     path.join(pathTmp, "simple.json"),
+    //     path.join(pathTmp, "sample.json"),
     //     JSON.stringify(output),
     // );
     expect(output).toEqual(
-        JSON.parse(await readFile(path.join(pathData, "simple.json"))),
+        JSON.parse(await readFile(path.join(pathData, "sample.json"))),
     );
   });
 });
@@ -683,181 +773,187 @@ describe("generateSample", function() {
 const createTimestamp = (str) => ({toDate: () => new Date(str)});
 
 describe("reportStatus", function() {
-  it("ignores data older than 24 hours.", async function() {
-    mockQueryRef.get.mockResolvedValueOnce({docs: []});
+  it("do nothng without records.", async function() {
+    mockDocRef.get.mockResolvedValueOnce({exists: false});
 
     await reportStatus(firebase, {email: {sender: "sender@example.com"}});
-
-    expect(mockCollectionRef.where.mock.calls).toEqual([
-      ["savedAt", ">=", expect.anything()],
-    ]);
-
-    expect(mockQueryRef.orderBy.mock.calls).toEqual([
-      ["savedAt", "asc"],
-    ]);
 
     expect(firebase.logger.info.mock.calls).toEqual([]);
   });
 
-  it("saved email data status: 'SUCCESS'" +
-    " for record without error.", async function() {
-    const sender = "sender@example.com";
-    const info1 = createFirestoreDocSnapMock(jest, "test1");
-    info1.data.mockReturnValue({
-      "savedAt": createTimestamp("2022-01-01T03:01:00.000Z"),
-      "parsedAt": createTimestamp("2022-01-01T03:01:01.000Z"),
-      "mergedAt": createTimestamp("2022-01-01T03:01:02.000Z"),
-      "generatedSample0At": createTimestamp("2022-01-01T03:02:00.000Z"),
-      "generatedSample1At": createTimestamp("2022-01-01T03:02:01.000Z"),
-      "generatedSample2At": createTimestamp("2022-01-01T03:02:02.000Z"),
-      "generatedSample3At": createTimestamp("2022-01-01T03:02:03.000Z"),
-      "generatedSample4At": createTimestamp("2022-01-01T03:02:04.000Z"),
-      "generatedSample5At": createTimestamp("2022-01-01T03:02:05.000Z"),
-      "generatedSample6At": createTimestamp("2022-01-01T03:02:06.000Z"),
-      "generatedSample7At": createTimestamp("2022-01-01T03:02:07.000Z"),
-      "generatedSample8At": createTimestamp("2022-01-01T03:02:08.000Z"),
-      "generatedSample9At": createTimestamp("2022-01-01T03:02:09.000Z"),
+  it("do nothng for a reported record.", async function() {
+    const info = createFirestoreDocSnapMock(jest, DOC_CURRENT);
+    info.data.mockReturnValue({
+      "k": {
+        id: "k20200101000000000000",
+        page: "test page k",
+        source: "test source k",
+        savedAt: createTimestamp("2022-01-01T00:00:00.000Z"),
+        parsedAt: createTimestamp("2022-01-01T00:00:00.001Z"),
+      },
+      "j": {
+        id: "j20200101000000000001",
+        page: "test page j",
+        source: "test source j",
+        savedAt: createTimestamp("2022-01-01T00:00:00.010Z"),
+        parsedAt: createTimestamp("2022-01-01T00:00:00.021Z"),
+      },
+      "mergedAt": createTimestamp("2022-01-01T00:00:00.020Z"),
+      "generatedSample0At": createTimestamp("2022-01-01T00:00:00.030Z"),
+      "generatedSample1At": createTimestamp("2022-01-01T00:00:00.031Z"),
+      "generatedSample2At": createTimestamp("2022-01-01T00:00:00.032Z"),
+      "generatedSample3At": createTimestamp("2022-01-01T00:00:00.033Z"),
+      "generatedSample4At": createTimestamp("2022-01-01T00:00:00.034Z"),
+      "generatedSample5At": createTimestamp("2022-01-01T00:00:00.035Z"),
+      "generatedSample6At": createTimestamp("2022-01-01T00:00:00.036Z"),
+      "generatedSample7At": createTimestamp("2022-01-01T00:00:00.037Z"),
+      "generatedSample8At": createTimestamp("2022-01-01T00:00:00.038Z"),
+      "generatedSample9At": createTimestamp("2022-01-01T00:00:00.039Z"),
+      "reportedAt": createTimestamp("2022-01-01T00:00:00.090Z"),
+    });
+    mockDocRef.get.mockResolvedValueOnce(info);
+
+    await reportStatus(firebase, {email: {sender: "sender@example.com"}});
+
+    expect(firebase.logger.info.mock.calls).toEqual([]);
+  });
+
+  it("saves an email data for a record with no error.", async function() {
+    const info = createFirestoreDocSnapMock(jest, DOC_CURRENT);
+    info.data.mockReturnValue({
+      "k": {
+        id: "k20200101000000000000",
+        page: "test page k",
+        source: "test source k",
+        savedAt: createTimestamp("2022-01-01T00:00:00.000Z"),
+        parsedAt: createTimestamp("2022-01-01T00:00:00.001Z"),
+      },
+      "j": {
+        id: "j20200101000000000001",
+        page: "test page j",
+        source: "test source j",
+        savedAt: createTimestamp("2022-01-01T00:00:00.010Z"),
+        parsedAt: createTimestamp("2022-01-01T00:00:00.021Z"),
+      },
+      "mergedAt": createTimestamp("2022-01-01T00:00:00.020Z"),
+      "generatedSample0At": createTimestamp("2022-01-01T00:00:00.030Z"),
+      "generatedSample1At": createTimestamp("2022-01-01T00:00:00.031Z"),
+      "generatedSample2At": createTimestamp("2022-01-01T00:00:00.032Z"),
+      "generatedSample3At": createTimestamp("2022-01-01T00:00:00.033Z"),
+      "generatedSample4At": createTimestamp("2022-01-01T00:00:00.034Z"),
+      "generatedSample5At": createTimestamp("2022-01-01T00:00:00.035Z"),
+      "generatedSample6At": createTimestamp("2022-01-01T00:00:00.036Z"),
+      "generatedSample7At": createTimestamp("2022-01-01T00:00:00.037Z"),
+      "generatedSample8At": createTimestamp("2022-01-01T00:00:00.038Z"),
+      "generatedSample9At": createTimestamp("2022-01-01T00:00:00.039Z"),
     });
     const admins = createFirestoreDocSnapMock(jest, "admins");
-    const admin = createFirestoreDocSnapMock(jest, "admin");
-    admins.data.mockReturnValue({accounts: ["admin"]});
-    admin.data.mockReturnValue({});
-    mockQueryRef.get
-        .mockResolvedValueOnce({docs: [info1]});
+    admins.data.mockReturnValue({
+      // accounts: undefined,
+    });
     mockDocRef.get
-        .mockResolvedValueOnce(admins)
-        .mockResolvedValueOnce(admin);
+        .mockResolvedValueOnce(info)
+        .mockResolvedValueOnce(admins);
 
-    await reportStatus(firebase, {email: {sender}});
-
-    expect(mockCollectionRef.where.mock.calls).toEqual([
-      ["savedAt", ">=", expect.anything()],
-    ]);
-
-    expect(mockQueryRef.orderBy.mock.calls).toEqual([
-      ["savedAt", "asc"],
-    ]);
-
-    expect(mockDoc.mock.calls).toEqual([
-      ["admins"],
-      ["admin"],
-      [expect.stringMatching(/^[0-9]+$/)],
-    ]);
-
-    expect(mockDocRef.set.mock.calls).toEqual([
-      [
-        {
-          to: [sender],
-          message: {
-            subject: "[flamingzipper] status: SUCCESS",
-            text: expect.stringContaining(`
---
-id: test1
-savedAt: 2022-01-01T03:01:00.000Z
-parsedAt: 2022-01-01T03:01:01.000Z
-mergedAt: 2022-01-01T03:01:02.000Z
-generatedSample0At: 2022-01-01T03:02:00.000Z
-generatedSample1At: 2022-01-01T03:02:01.000Z
-generatedSample2At: 2022-01-01T03:02:02.000Z
-generatedSample3At: 2022-01-01T03:02:03.000Z
-generatedSample4At: 2022-01-01T03:02:04.000Z
-generatedSample5At: 2022-01-01T03:02:05.000Z
-generatedSample6At: 2022-01-01T03:02:06.000Z
-generatedSample7At: 2022-01-01T03:02:07.000Z
-generatedSample8At: 2022-01-01T03:02:08.000Z
-generatedSample9At: 2022-01-01T03:02:09.000Z
---
-`),
-          },
-          type: "status",
-          createdAt: expect.anything(),
-        },
-      ],
-    ]);
+    await reportStatus(firebase, {email: {sender: "sender@example.com"}});
 
     expect(firebase.logger.info.mock.calls).toEqual([
       ["status: SUCCESS"],
     ]);
-  });
-
-  it("saved email data status: 'ERROR'" +
-    " for record with error.", async function() {
-    const sender = "sender@example.com";
-    const info1 = createFirestoreDocSnapMock(jest, "test1");
-    info1.data.mockReturnValue({
-      "savedAt": createTimestamp("2022-01-01T03:01:00.000Z"),
-      "parsedAt": createTimestamp("2022-01-01T03:01:01.000Z"),
-      "mergedAt": createTimestamp("2022-01-01T03:01:02.000Z"),
-      "generatedSample0At": createTimestamp("2022-01-01T03:02:00.000Z"),
-      "generatedSample1At": createTimestamp("2022-01-01T03:02:01.000Z"),
-      "generatedSample2At": createTimestamp("2022-01-01T03:02:02.000Z"),
-      "generatedSample3At": createTimestamp("2022-01-01T03:02:03.000Z"),
-      "generatedSample4At": createTimestamp("2022-01-01T03:02:04.000Z"),
-      "generatedSample5At": createTimestamp("2022-01-01T03:02:05.000Z"),
-      "generatedSample6At": createTimestamp("2022-01-01T03:02:06.000Z"),
-      // "generatedSample7At": createTimestamp("2022-01-01T03:02:07.000Z"),
-      "generatedSample8At": createTimestamp("2022-01-01T03:02:08.000Z"),
-      "generatedSample9At": createTimestamp("2022-01-01T03:02:09.000Z"),
-    });
-    const admins = createFirestoreDocSnapMock(jest, "admins");
-    const admin = createFirestoreDocSnapMock(jest, "admin");
-    admins.data.mockReturnValue({accounts: ["admin"]});
-    admin.data.mockReturnValue({});
-    mockQueryRef.get
-        .mockResolvedValueOnce({docs: [info1]});
-    mockDocRef.get
-        .mockResolvedValueOnce(admins)
-        .mockResolvedValueOnce(admin);
-
-    await reportStatus(firebase, {email: {sender}});
-
-    expect(mockCollectionRef.where.mock.calls).toEqual([
-      ["savedAt", ">=", expect.anything()],
-    ]);
-
-    expect(mockQueryRef.orderBy.mock.calls).toEqual([
-      ["savedAt", "asc"],
-    ]);
-
-    expect(mockDoc.mock.calls).toEqual([
-      ["admins"],
-      ["admin"],
-      [expect.stringMatching(/^[0-9]+$/)],
-    ]);
 
     expect(mockDocRef.set.mock.calls).toEqual([
-      [
-        {
-          to: [sender],
-          message: {
-            subject: "[flamingzipper] status: ERROR",
-            text: expect.stringContaining(`
---
-id: test1
-savedAt: 2022-01-01T03:01:00.000Z
-parsedAt: 2022-01-01T03:01:01.000Z
-mergedAt: 2022-01-01T03:01:02.000Z
-generatedSample0At: 2022-01-01T03:02:00.000Z
-generatedSample1At: 2022-01-01T03:02:01.000Z
-generatedSample2At: 2022-01-01T03:02:02.000Z
-generatedSample3At: 2022-01-01T03:02:03.000Z
-generatedSample4At: 2022-01-01T03:02:04.000Z
-generatedSample5At: 2022-01-01T03:02:05.000Z
-generatedSample6At: 2022-01-01T03:02:06.000Z
-generatedSample7At: error
-generatedSample8At: 2022-01-01T03:02:08.000Z
-generatedSample9At: 2022-01-01T03:02:09.000Z
---
-`),
-          },
-          type: "status",
-          createdAt: expect.anything(),
+      [{
+        to: ["sender@example.com"],
+        message: {
+          subject: "[flamingzipper] status: SUCCESS",
+          text: expect.not.stringContaining("error"),
         },
-      ],
+        type: "status",
+        createdAt: expect.any(Date),
+      }],
     ]);
+
+    expect(mockDocRef.update.mock.calls).toEqual([
+      [{
+        reportedAt: expect.any(Date),
+      }],
+    ]);
+  });
+
+  it("saves an email data for a record with errors.", async function() {
+    const info = createFirestoreDocSnapMock(jest, DOC_CURRENT);
+    info.data.mockReturnValue({
+      "k": {
+        id: "k20200101000000000000",
+        page: "test page k",
+        source: "test source k",
+        savedAt: createTimestamp("2022-01-01T00:00:00.000Z"),
+        parsedAt: createTimestamp("2022-01-01T00:00:00.001Z"),
+      },
+      "j": {
+        id: "j20200101000000000001",
+        page: "test page j",
+        source: "test source j",
+        savedAt: createTimestamp("2022-01-01T00:00:00.010Z"),
+        parsedAt: createTimestamp("2022-01-01T00:00:00.021Z"),
+      },
+      "mergedAt": createTimestamp("2022-01-01T00:00:00.020Z"),
+      "generatedSample0At": createTimestamp("2022-01-01T00:00:00.030Z"),
+      "generatedSample1At": createTimestamp("2022-01-01T00:00:00.031Z"),
+      "generatedSample2At": createTimestamp("2022-01-01T00:00:00.032Z"),
+      "generatedSample3At": createTimestamp("2022-01-01T00:00:00.033Z"),
+      "generatedSample4At": createTimestamp("2022-01-01T00:00:00.034Z"),
+      "generatedSample5At": createTimestamp("2022-01-01T00:00:00.035Z"),
+      "generatedSample6At": createTimestamp("2022-01-01T00:00:00.036Z"),
+      "generatedSample7At": createTimestamp("2022-01-01T00:00:00.037Z"),
+      // "generatedSample8At": createTimestamp("2022-01-01T00:00:00.038Z"),
+      "generatedSample9At": createTimestamp("2022-01-01T00:00:00.039Z"),
+    });
+    const admins = createFirestoreDocSnapMock(jest, "admins");
+    admins.data.mockReturnValue({
+      accounts: ["id01", "id02", "id03"],
+    });
+    const admin01 = createFirestoreDocSnapMock(jest, "id01");
+    admin01.data.mockReturnValue({
+      email: "admin01@example.com",
+    });
+    const admin02 = createFirestoreDocSnapMock(jest, "id02");
+    admin02.data.mockReturnValue({
+      // email: undefined,
+    });
+    const admin03 = createFirestoreDocSnapMock(jest, "id03");
+    admin03.data.mockReturnValue({
+      email: "admin03@example.com",
+    });
+    mockDocRef.get
+        .mockResolvedValueOnce(info)
+        .mockResolvedValueOnce(admins)
+        .mockResolvedValueOnce(admin01)
+        .mockResolvedValueOnce(admin02)
+        .mockResolvedValueOnce(admin03);
+
+    await reportStatus(firebase, {email: {sender: "sender@example.com"}});
 
     expect(firebase.logger.info.mock.calls).toEqual([
       ["status: ERROR"],
+    ]);
+
+    expect(mockDocRef.set.mock.calls).toEqual([
+      [{
+        to: ["admin01@example.com", "admin03@example.com"],
+        message: {
+          subject: "[flamingzipper] status: ERROR",
+          text: expect.stringContaining("error"),
+        },
+        type: "status",
+        createdAt: expect.any(Date),
+      }],
+    ]);
+
+    expect(mockDocRef.update.mock.calls).toEqual([
+      [{
+        reportedAt: expect.any(Date),
+      }],
     ]);
   });
 });

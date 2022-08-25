@@ -5,79 +5,115 @@ const {parse} = require("csv-parse");
 const {stringify} =require( "csv-stringify/sync");
 const {region} = require("./config");
 
-const URL_K_PAGE = "https://www.post.japanpost.jp/zipcode/dl/kogaki-zip.html";
-const URL_K_SOURCE = "https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip";
-const URL_J_PAGE = "https://www.post.japanpost.jp/zipcode/dl/jigyosyo/index-zip.html";
-const URL_J_SOURCE = "https://www.post.japanpost.jp/zipcode/dl/jigyosyo/zip/jigyosyo.zip";
-const COLLECTION_SOURCE = "sources";
+const URL_PAGE_K = "https://www.post.japanpost.jp/zipcode/dl/kogaki-zip.html";
+const URL_PAGE_J = "https://www.post.japanpost.jp/zipcode/dl/jigyosyo/index-zip.html";
+const URL_SOURCE_K = "https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip";
+const URL_SOURCE_J = "https://www.post.japanpost.jp/zipcode/dl/jigyosyo/zip/jigyosyo.zip";
+const COLLECTION_SOURCES = "sources";
+const DOC_CURRENT = "current";
+
+const setTaskQueue = (functions, name, data) => functions
+    .taskQueue(`locations/${region}/functions/${name}`).enqueue(data);
+
+/**
+ * Get the hash of the page.
+ * @param {String} url The URL of the page
+ * @return {Promise<Object>} {content, hash}
+ */
+async function getContent(url) {
+  const respPage = await axios.get(url, {responseType: "arraybuffer"});
+  const {createHash} = await require("node:crypto");
+  const hashPage = createHash("sha256");
+  hashPage.update(Buffer.from(respPage.data));
+  return {
+    data: respPage.data,
+    hash: hashPage.digest("hex"),
+  };
+}
+
+/**
+ * Save source.
+ * @param {Object} firebase Firebase API
+ * @param {String} type "k", "j"
+ * @param {Date} ts
+ * @param {Object} info {type: {page, source}}
+ * @param {Object} page {data, hash}
+ * @param {Object} source  {data, hash}
+ * @return {Promise<void>}
+ */
+async function saveSource(firebase, type, ts, info, page, source) {
+  const {bucket, logger} = firebase;
+
+  const id = `${type}${ts.toISOString().replace(/[^0-9]/g, "")}`;
+
+  await bucket.file(`sources/${id}.zip`).save(Buffer.from(source.data));
+
+  info[type].id = id;
+  info[type].page = page.hash;
+  info[type].source = source.hash;
+  info[type].savedAt = ts;
+  info[type].parsedAt = null;
+
+  logger.info(`saved: ${id}`);
+}
 
 /**
  * Get source file.
  * @param {Object} firebase Firebase API
- * @param {string} type "k" / "j"
- * @param {string} pageUrl URL of the page
- * @param {string} sourceUrl URL of the source
  * @return {Promise<string>} ID of the source file
  */
-async function getSource(firebase, type, pageUrl, sourceUrl) {
-  const {db, bucket, logger} = firebase;
-  const ts = new Date();
-  const info = await db.collection(COLLECTION_SOURCE)
-      .where("type", "==", type)
-      .orderBy("savedAt", "desc")
-      .limit(1).get();
-  const respPage = await axios.get(pageUrl, {responseType: "arraybuffer"});
-  const {createHash} = await require("node:crypto");
-  const hashPage = createHash("sha256");
-  hashPage.update(Buffer.from(respPage.data));
-  const page = hashPage.digest("hex");
-
-  if (info.docs.length == 1 && info.docs[0].get("page") === page) {
-    return {
-      id: info.docs[0].id,
-      savedAt: info.docs[0].get("savedAt"),
-      parsedAt: info.docs[0].get("parsedAt"),
-    };
-  }
-
-  const respZip = await axios.get(sourceUrl, {responseType: "arraybuffer"});
-  const hashZip = createHash("sha256");
-  hashZip.update(Buffer.from(respZip.data));
-  const sum = hashZip.digest("hex");
-
-  if (info.docs.length == 1 && info.docs[0].get("sum") === sum) {
-    return {
-      id: info.docs[0].id,
-      savedAt: info.docs[0].get("savedAt"),
-      parsedAt: info.docs[0].get("parsedAt"),
-    };
-  }
-
-  const id = `${type}${ts.toISOString().replace(/[^0-9]/g, "")}`;
-  await bucket.file(`sources/${id}.zip`).save(Buffer.from(respZip.data));
-  await db.collection(COLLECTION_SOURCE).doc(id)
-      .set({type, page, sum, savedAt: ts});
-
-  logger.info(`saved: ${id}`);
-  return {id};
-}
-
-/**
- * Get source files.
- * @param {Object} firebase Firebase API
- * @return {Promise} void
- */
 async function getSources(firebase) {
-  const {functions} = firebase;
+  const {db, functions, logger} = firebase;
 
-  const k = await getSource(firebase, "k", URL_K_PAGE, URL_K_SOURCE);
-  const j = await getSource(firebase, "j", URL_J_PAGE, URL_J_SOURCE);
+  const doc = await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).get();
+  const curr = doc.data();
 
-  if (!k.parsedAt || !j.parsedAt) {
-    await functions.taskQueue(
-        `locations/${region}/functions/parseSources`,
-    ).enqueue({k, j});
+  const pages = {
+    k: await getContent(URL_PAGE_K),
+    j: await getContent(URL_PAGE_J),
+  };
+
+  if (pages.k.hash === curr.k.page && pages.j.hash === curr.j.page) {
+    return;
   }
+
+  const info = {k: {...curr.k}, j: {...curr.j}}; // Deep copy
+
+  const sources = {
+    k: {hash: curr.k.hash},
+    j: {hash: curr.j.hash},
+  };
+
+  const ts = new Date();
+  let saved = false;
+
+  if (pages.k.hash !== curr.k.page) {
+    sources.k = await getContent(URL_SOURCE_K);
+    if (sources.k.hash !== curr.k.source) {
+      await saveSource(firebase, "k", ts, info, pages.k, sources.k);
+      saved = true;
+    }
+  }
+
+  if (pages.j.hash !== curr.j.page) {
+    sources.j = await getContent(URL_SOURCE_J);
+    if (sources.j.hash !== curr.j.source) {
+      await saveSource(firebase, "j", ts, info, pages.j, sources.j);
+      saved = true;
+    }
+  }
+
+  if (!saved) {
+    return;
+  }
+
+  const history = curr.k.id.slice(1) > curr.j.id.slice(1) ?
+    `h${curr.k.id.slice(1)}` : `h${curr.j.id.slice(1)}`;
+  await db.collection(COLLECTION_SOURCES).doc(history).set(curr);
+
+  await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).set(info);
+  await setTaskQueue(functions, "parseSources", info);
+  logger.info("requestd: parseSources()");
 }
 
 /**
@@ -118,23 +154,24 @@ async function getSourceData(firebase, id) {
  */
 async function saveParsed(firebase, id, jisx0401s, jisx0402s, zips) {
   const {db, bucket, logger} = firebase;
+  const type = id.slice(0, 1);
 
   await bucket.file(`work/${id}_jisx0401.json`).save(JSON.stringify(jisx0401s));
   await bucket.file(`work/${id}_jisx0402.json`).save(JSON.stringify(jisx0402s));
   await bucket.file(`work/${id}_zips.json`).save(JSON.stringify(zips));
 
   await bucket.file(`work/${id}_jisx0401.json`).copy(
-      bucket.file(`work/${id.slice(0, 1)}_jisx0401.json`),
+      bucket.file(`work/${type}_jisx0401.json`),
   );
   await bucket.file(`work/${id}_jisx0402.json`).copy(
-      bucket.file(`work/${id.slice(0, 1)}_jisx0402.json`),
+      bucket.file(`work/${type}_jisx0402.json`),
   );
   await bucket.file(`work/${id}_zips.json`).copy(
-      bucket.file(`work/${id.slice(0, 1)}_zips.json`),
+      bucket.file(`work/${type}_zips.json`),
   );
 
-  await db.collection(COLLECTION_SOURCE).doc(id).update({
-    parsedAt: new Date(),
+  await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).update({
+    [`${type}.parsedAt`]: new Date(),
   });
 
   logger.info(`parsed: ${id}`);
@@ -592,27 +629,22 @@ async function parseSources(firebase, data) {
   await saveHistory("simple_sjis.csv");
   await saveHistory("simple.zip");
 
+  await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).update({
+    mergedAt: ts,
+  });
+
   await Promise.all(
       Array.from(Array(10).keys())
           .map((prefix) => `${prefix}`)
-          .map((prefix) => functions
-              .taskQueue(
-                  `locations/${region}/functions/generateSample`,
-              ).enqueue({
-                k: {id: data.k.id},
-                j: {id: data.j.id},
-                prefix,
-              }),
+          .map((prefix) => setTaskQueue(functions, "generateSample", {
+            k: {id: data.k.id},
+            j: {id: data.j.id},
+            prefix,
+          }),
           ),
   );
 
-  await db.collection(COLLECTION_SOURCE).doc(parsedK.id).update({
-    mergedAt: ts,
-  });
-
-  await db.collection(COLLECTION_SOURCE).doc(parsedJ.id).update({
-    mergedAt: ts,
-  });
+  logger.info("requestd: generateSample()");
 }
 
 /**
@@ -650,11 +682,7 @@ async function generateSample(firebase, data) {
 
   const ts = new Date();
 
-  await db.collection(COLLECTION_SOURCE).doc(data.k.id).update({
-    [`generatedSample${data.prefix}At`]: ts,
-  });
-
-  await db.collection(COLLECTION_SOURCE).doc(data.j.id).update({
+  await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).update({
     [`generatedSample${data.prefix}At`]: ts,
   });
 }
@@ -670,18 +698,34 @@ async function reportStatus(firebase, config) {
 
   const ts = new Date();
 
-  const records = await db.collection(COLLECTION_SOURCE)
-      .where("savedAt", ">=", new Date(ts.getTime() - 24 * 3600 * 1000))
-      .orderBy("savedAt", "asc")
-      .get();
+  const doc = await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).get();
 
-  if (!records.docs.length) {
+  if (!doc.exists || doc.get("reportedAt")) {
     return;
   }
 
-  const fields = [
-    "savedAt",
-    "parsedAt",
+  let status = "SUCCESS";
+  const report = [];
+  const data = doc.data();
+
+  report.push("--");
+  ["k", "j"].forEach(
+      function(type) {
+        ["savedAt", "parsedAt"].forEach(
+            function(field) {
+              const val = data[type][field];
+              if (val && val.toDate) {
+                report.push(`${type}.${field}: ${val.toDate().toISOString()}`);
+              } else {
+                report.push(`${type}.${field}: error`);
+                status = "ERROR";
+              }
+            },
+        );
+      },
+  );
+
+  [
     "mergedAt",
     "generatedSample0At",
     "generatedSample1At",
@@ -693,35 +737,23 @@ async function reportStatus(firebase, config) {
     "generatedSample7At",
     "generatedSample8At",
     "generatedSample9At",
-  ];
-
-  let status = "SUCCESS";
-  const report = [];
-
-  records.docs.forEach(
-      function(rec) {
-        report.push("--");
-        report.push(`id: ${rec.id}`);
-        fields.forEach(
-            function(field) {
-              const val = rec.get(field);
-              if (val && val.toDate) {
-                report.push(`${field}: ${val.toDate().toISOString()}`);
-              } else {
-                report.push(`${field}: error`);
-                status = "ERROR";
-              }
-            },
-        );
-        report.push("--");
+  ].forEach(
+      function(field) {
+        if (data[field] && data[field].toDate) {
+          report.push(`${field}: ${data[field].toDate().toISOString()}`);
+        } else {
+          report.push(`${field}: error`);
+          status = "ERROR";
+        }
       },
   );
+  report.push("--");
 
   logger.info(`status: ${status}`);
 
   const admins = await db.collection("groups").doc("admins").get();
   const to = (await Promise.all(
-      admins.get("accounts").map(
+      (admins.get("accounts") || []).map(
           async function(id) {
             const account = await db.collection("accounts").doc(id).get();
             return account.get("email");
@@ -746,6 +778,10 @@ ${report.join("\n")}
         type: "status",
         createdAt: ts,
       });
+
+  await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).update({
+    reportedAt: ts,
+  });
 }
 
 module.exports = {

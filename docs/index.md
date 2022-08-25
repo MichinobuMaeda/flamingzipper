@@ -13,7 +13,7 @@
 
 日本郵便が住所と事業所の2種類のデータをおおむね毎月公開しています。
 まれに訂正版が出ることもあります。
-そのため提供するデータの更新は月２回程度で、通常は4:00(JST)までに完了します。
+そのため提供するデータの更新は月２回程度で、通常は3:00(JST)までに完了します。
 
 ### 更新日時の掲示
 
@@ -36,6 +36,8 @@ URL: https://storage.googleapis.com/flamingzipper.appspot.com/simple/[3桁].json
 
 それぞれの郵便番号に対して1件のデータです。
 入力された郵便番号に対応する住所を自動で記入する使い方を想定しています。
+
+京都市の通り名には対応していません。
 
 サンプル: <https://storage.googleapis.com/flamingzipper.appspot.com/simple/060.json>
 

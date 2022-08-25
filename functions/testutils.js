@@ -45,12 +45,12 @@ function createMockFirebase(jest) {
 
   const mockQueryRef = {
     get: jest.fn(),
-    orderBy: jest.fn(function() {
-      return mockQueryRef;
-    }),
-    limit: jest.fn(function() {
-      return mockQueryRef;
-    }),
+    // orderBy: jest.fn(function() {
+    //   return mockQueryRef;
+    // }),
+    // limit: jest.fn(function() {
+    //   return mockQueryRef;
+    // }),
   };
 
   const mockCollectionRef = {
@@ -59,9 +59,9 @@ function createMockFirebase(jest) {
     // orderBy: jest.fn(function() {
     //   return mockQueryRef;
     // }),
-    where: jest.fn(function() {
-      return mockQueryRef;
-    }),
+    // where: jest.fn(function() {
+    //   return mockQueryRef;
+    // }),
   };
 
   const mockCollection = jest.fn(function() {

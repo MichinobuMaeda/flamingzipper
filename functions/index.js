@@ -56,7 +56,7 @@ exports.updateUserPassword = functions.region(region)
         });
 
 exports.getSources = functions.region(region)
-    .pubsub.schedule("11 3 * * *").timeZone(timeZone)
+    .pubsub.schedule("7 2 * * *").timeZone(timeZone)
     .onRun(() => getSources(firebase));
 
 exports.parseSources = functions.region(region)
@@ -70,5 +70,5 @@ exports.generateSample = functions.region(region)
     .onDispatch((data) => generateSample(firebase, data));
 
 exports.reportStatus = functions.region(region)
-    .pubsub.schedule("57 3 * * *").timeZone(timeZone)
+    .pubsub.schedule("57 2 * * *").timeZone(timeZone)
     .onRun(() => reportStatus(firebase, functions.config()));
