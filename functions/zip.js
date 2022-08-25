@@ -73,7 +73,10 @@ async function getSources(firebase) {
     j: await getContent(URL_PAGE_J),
   };
 
-  if (pages.k.hash === curr.k.page && pages.j.hash === curr.j.page) {
+  if (doc.exists &&
+      curr.k && curr.j &&
+      pages.k.hash === curr.k.page &&
+      pages.j.hash === curr.j.page) {
     return;
   }
 
