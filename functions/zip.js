@@ -80,7 +80,10 @@ async function getSources(firebase) {
     return;
   }
 
-  const info = {k: {...(curr.k || {})}, j: {...(curr.j || {})}}; // Deep copy
+  const info = {
+    k: {...((curr && curr.k) || {})},
+    j: {...((curr && curr.j) || {})},
+  }; // Deep copy
 
   const sources = {
     k: {hash: curr.k.hash},
