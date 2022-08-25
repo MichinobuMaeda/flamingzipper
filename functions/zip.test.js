@@ -776,7 +776,7 @@ describe("reportStatus", function() {
   it("do nothng without records.", async function() {
     mockDocRef.get.mockResolvedValueOnce({exists: false});
 
-    await reportStatus(firebase, {email: {sender: "sender@example.com"}});
+    await reportStatus(firebase, {mail: {sender: "sender@example.com"}});
 
     expect(firebase.logger.info.mock.calls).toEqual([]);
   });
@@ -813,7 +813,7 @@ describe("reportStatus", function() {
     });
     mockDocRef.get.mockResolvedValueOnce(info);
 
-    await reportStatus(firebase, {email: {sender: "sender@example.com"}});
+    await reportStatus(firebase, {mail: {sender: "sender@example.com"}});
 
     expect(firebase.logger.info.mock.calls).toEqual([]);
   });
@@ -855,7 +855,7 @@ describe("reportStatus", function() {
         .mockResolvedValueOnce(info)
         .mockResolvedValueOnce(admins);
 
-    await reportStatus(firebase, {email: {sender: "sender@example.com"}});
+    await reportStatus(firebase, {mail: {sender: "sender@example.com"}});
 
     expect(firebase.logger.info.mock.calls).toEqual([
       ["status: SUCCESS"],
@@ -932,7 +932,7 @@ describe("reportStatus", function() {
         .mockResolvedValueOnce(admin02)
         .mockResolvedValueOnce(admin03);
 
-    await reportStatus(firebase, {email: {sender: "sender@example.com"}});
+    await reportStatus(firebase, {mail: {sender: "sender@example.com"}});
 
     expect(firebase.logger.info.mock.calls).toEqual([
       ["status: ERROR"],
