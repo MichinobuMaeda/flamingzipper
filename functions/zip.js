@@ -2,7 +2,7 @@ const JSZip = require("jszip");
 const iconv = require("iconv-lite");
 const axios = require("axios");
 const {parse} = require("csv-parse");
-const {stringify} =require( "csv-stringify/sync");
+const {stringify} = require( "csv-stringify/sync");
 const {region} = require("./config");
 
 const URL_PAGE_K = "https://www.post.japanpost.jp/zipcode/dl/kogaki-zip.html";
@@ -144,140 +144,10 @@ async function getSourceData(firebase, id) {
 }
 
 /**
- * Save parsed data.
- * @param {Object} firebase Firebase API
- * @param {string} id ID of the source file
- * @param {Array} jisx0401s List of prefectures
- * @param {Array} jisx0402s List of cities
- * @param {Object} zips List of zips
- * @return {Promise} void
- */
-async function saveParsed(firebase, id, jisx0401s, jisx0402s, zips) {
-  const {db, bucket, logger} = firebase;
-  const type = id.slice(0, 1);
-
-  await bucket.file(`work/${id}_jisx0401.json`).save(JSON.stringify(jisx0401s));
-  await bucket.file(`work/${id}_jisx0402.json`).save(JSON.stringify(jisx0402s));
-  await bucket.file(`work/${id}_zips.json`).save(JSON.stringify(zips));
-
-  await bucket.file(`work/${id}_jisx0401.json`).copy(
-      bucket.file(`work/${type}_jisx0401.json`),
-  );
-  await bucket.file(`work/${id}_jisx0402.json`).copy(
-      bucket.file(`work/${type}_jisx0402.json`),
-  );
-  await bucket.file(`work/${id}_zips.json`).copy(
-      bucket.file(`work/${type}_zips.json`),
-  );
-
-  await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).update({
-    [`${type}.parsedAt`]: new Date(),
-  });
-
-  logger.info(`parsed: ${id}`);
-}
-
-/**
- * Generate zip records from joind zip data.
- * @param {Object} zips Reslut
- * @param {string} code Zip code
- * @param {Object} item Joined zip data
- */
-function generateZipRecord(zips, code, item) {
-  if (
-    item.addr1.match(/^以下に/) ||
-    item.addr1.match(/場合$/) ||
-    item.addr1.match(/一円$/) ||
-    item.addr1.match(/～/)
-  ) {
-    item.note = item.addr1;
-    item.addr1 = "";
-  }
-
-  if (
-    item.addr2.match(/～/) ||
-    item.addr2.match(/・/)||
-    item.addr2.match(/「/)||
-    item.addr2.match(/」/) ||
-    item.addr2.match(/階層不明$/) ||
-    item.addr2.match(/を除く/) ||
-    item.addr2.match(/以外$/) ||
-    item.addr2.match(/以上$/) ||
-    item.addr2.match(/以下$/) ||
-    item.addr2.match(/以内$/) ||
-    item.addr2.match(/以降$/) ||
-    item.addr2.match(/を含む$/) ||
-    item.addr2.match(/その他$/) ||
-    item.addr2.match(/○○/) ||
-    item.addr2.match(
-        /^[^０１２３４５６７８９－、]+[０１２３４５６７８９－、]+、[０１２３４５６７８９－、]+[^０１２３４５６７８９－、]+/,
-    ) ||
-    item.addr2.match(
-        /^[０１２３４５６７８９－]+[^０１２３４５６７８９－、]+[０１２３４５６７８９－]+/,
-    ) ||
-  item.addr2 === "丁目" ||
-    item.addr2 === "番地"||
-    item.addr2 === "大字"
-  ) {
-    item.note = item.addr2;
-    item.addr2 = "";
-  }
-
-  if (item.addr1 === "" && item.addr2 !== "") {
-    item.addr1 = item.addr2;
-    item.addr2 = "";
-  }
-
-  item.addr1.split("、")
-      .map(
-          function(addr1) {
-            return {...item, addr1};
-          },
-      )
-      .forEach(
-          function(item1) {
-            const suffix = item1.addr2.match(
-                /^[０１２３４５６７８９－、]+[^０１２３４５６７８９－、]+$/,
-            ) ? item1.addr2.replace(/^[０１２３４５６７８９－、]+/, "") : "";
-            const addr2s = item1.addr2.split("、")
-                .map(
-                    function(str) {
-                      if (suffix && !str.endsWith(suffix)) {
-                        return `${str}${suffix}`;
-                      }
-                      return str;
-                    },
-                );
-            addr2s.map(
-                function(addr2) {
-                  return {...item1, addr2};
-                },
-            )
-                .forEach(
-                    function(item2) {
-                      const zip1 = code.slice(0, 3);
-                      const zip2 = code.slice(3);
-
-                      if (!zips[zip1]) {
-                        zips[zip1] = {};
-                      }
-
-                      if (!zips[zip1][zip2]) {
-                        zips[zip1][zip2] = [];
-                      }
-
-                      zips[zip1][zip2].push(item2);
-                    },
-                );
-          },
-      );
-}
-
-/**
  * Get parsed data for marge.
  * @param {Object} firebase Firebase API
  * @param {string} id ID of the source file
- * @return {Object} {id, jisx0401s, jisx0402s, zips}
+ * @return {Object} {id, jisx0401s, jisx0402s, parsed}
  */
 async function getParsedData(firebase, id) {
   const {bucket} = firebase;
@@ -290,10 +160,47 @@ async function getParsedData(firebase, id) {
     jisx0402s: JSON.parse(
         (await bucket.file(`work/${type}_jisx0402.json`).download())[0],
     ),
-    zips: JSON.parse(
-        (await bucket.file(`work/${type}_zips.json`).download())[0],
+    parsed: JSON.parse(
+        (await bucket.file(`work/${type}_parsed.json`).download())[0],
     ),
   };
+}
+
+/**
+ * Save parsed data.
+ * @param {Object} firebase Firebase API
+ * @param {string} id ID of the source file
+ * @param {Array} jisx0401s List of prefectures
+ * @param {Array} jisx0402s List of cities
+ * @param {Object} parsed List of parsed records
+ * @return {Promise} void
+ */
+async function saveParsed(firebase, id, jisx0401s, jisx0402s, parsed) {
+  const {db, bucket, logger} = firebase;
+  const type = id.slice(0, 1);
+
+  await bucket.file(`work/${id}_jisx0401.json`)
+      .save(JSON.stringify(jisx0401s));
+  await bucket.file(`work/${id}_jisx0402.json`)
+      .save(JSON.stringify(jisx0402s));
+  await bucket.file(`work/${id}_parsed.json`)
+      .save(JSON.stringify(parsed));
+
+  await bucket.file(`work/${id}_jisx0401.json`).copy(
+      bucket.file(`work/${type}_jisx0401.json`),
+  );
+  await bucket.file(`work/${id}_jisx0402.json`).copy(
+      bucket.file(`work/${type}_jisx0402.json`),
+  );
+  await bucket.file(`work/${id}_parsed.json`).copy(
+      bucket.file(`work/${type}_parsed.json`),
+  );
+
+  await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).update({
+    [`${type}.parsedAt`]: new Date(),
+  });
+
+  logger.info(`parsed: ${id}`);
 }
 
 /**
@@ -309,11 +216,16 @@ async function parseSourceK(firebase, id) {
   const jisx0401s = [];
   let jisx0402 = "";
   const jisx0402s = [];
-  const zips = {};
+  const parsed = [];
   let inside = false;
-  let addr1 = "";
-  let addr2 = "";
-  let note = "";
+  let item = {
+    jisx0402: "",
+    zip: "",
+    addr1_k: "",
+    addr1: "",
+    note_k: "",
+    note: "",
+  };
 
   for await (const rec of csvReader) {
     if (jisx0401 !== rec[0].slice(0, 2)) {
@@ -335,36 +247,89 @@ async function parseSourceK(firebase, id) {
     }
 
     if (inside) {
-      if (rec[8].match(/）/)) {
-        addr2 += rec[8].replace(/）/, "");
-        note = "";
+      if (rec[8].match(/）$/)) {
+        item.note += rec[8].replace(/）$/, "");
         inside = false;
-        generateZipRecord(zips, rec[2], {jisx0402, addr1, addr2, note});
+
+        if (item.note_k) {
+          item.note_k += rec[5].replace(/\)$/, "");
+        }
+
+        parsed.push(item);
       } else {
-        addr2 += rec[8];
+        item.note += rec[8];
+
+        if (item.note_k) {
+          item.note_k += rec[5];
+        }
       }
-    } else if (rec[8].match(/（/)) {
-      if (rec[8].match(/）/)) {
-        addr1 = rec[8].replace(/（.*/, "");
-        addr2 = rec[8].replace(/.*（/, "").replace(/）/, "");
-        note = "";
-        generateZipRecord(zips, rec[2], {jisx0402, addr1, addr2, note});
+    } else if (rec[8].match(/（/) && !rec[8].match(/場合（/)) {
+      item = {
+        jisx0402,
+        zip: rec[2],
+        addr1_k: "",
+        addr1: "",
+        note_k: "",
+        note: "",
+      };
+
+      if (rec[8].match(/）$/)) {
+        item.addr1 = rec[8].replace(/（.*/, "");
+        item.note = rec[8].replace(/[^（]*（/, "").replace(/）$/, "");
+
+        if (rec[5].match(/\(/)) {
+          item.addr1_k = rec[5].replace(/\(.*/, "");
+          item.note_k = rec[5].replace(/[^(]*\(/, "").replace(/\)$/, "");
+        } else {
+          item.addr1_k = rec[5];
+          item.note_k = "";
+        }
+
+        parsed.push(item);
       } else {
         inside = true;
-        addr1 = rec[8].replace(/（.*/, "");
-        addr2 = rec[8].replace(/.*（/, "");
+        item.addr1 = rec[8].replace(/（.*/, "");
+        item.note = rec[8].replace(/.*（/, "");
+
+        if (rec[5].match(/\(/)) {
+          item.addr1_k = rec[5].replace(/\(.*/, "");
+          item.note_k = rec[5].replace(/.*\(/, "");
+        } else {
+          item.addr1_k = rec[5];
+          item.note_k = "";
+        }
       }
     } else {
-      addr1 = rec[8];
-      addr2 = "";
-      note = "";
-      generateZipRecord(zips, rec[2], {jisx0402, addr1, addr2, note});
+      item = {
+        jisx0402,
+        zip: rec[2],
+        addr1_k: rec[5],
+        addr1: rec[8],
+        note_k: "",
+        note: "",
+      };
+
+      if (
+        item.addr1.match(/^以下に/) ||
+        item.addr1.match(/場合$/) ||
+        item.addr1.match(/場合（/) ||
+        item.addr1.match(/一円$/) ||
+        item.addr1.match(/～/) ||
+        item.addr1.match(/、/)
+      ) {
+        item.note = item.addr1;
+        item.addr1 = "";
+        item.note_k = item.addr1_k;
+        item.addr1_k = "";
+      }
+
+      parsed.push(item);
     }
   }
 
-  await saveParsed(firebase, id, jisx0401s, jisx0402s, zips);
+  await saveParsed(firebase, id, jisx0401s, jisx0402s, parsed);
 
-  return {id, jisx0401s, jisx0402s, zips};
+  return {id, jisx0401s, jisx0402s, parsed};
 }
 
 /**
@@ -380,7 +345,7 @@ async function parseSourceJ(firebase, id) {
   const jisx0401s = [];
   let jisx0402 = "";
   const jisx0402s = [];
-  const zips = {};
+  const parsed = [];
 
   for await (const rec of csvReader) {
     if (jisx0401 !== rec[0].slice(0, 2)) {
@@ -399,111 +364,132 @@ async function parseSourceJ(firebase, id) {
       });
     }
 
-    const item = {
+    parsed.push({
       jisx0402,
+      zip: rec[7],
       addr1: rec[5],
       addr2: rec[6],
+      name_k: rec[1],
       name: rec[2],
-      kana: rec[1],
-    };
-
-    const zip1 = rec[7].slice(0, 3);
-    const zip2 = rec[7].slice(3);
-
-    if (!zips[zip1]) {
-      zips[zip1] = {};
-    }
-
-    if (!zips[zip1][zip2]) {
-      zips[zip1][zip2] = [];
-    }
-
-    zips[zip1][zip2].push(item);
+    });
   }
 
-  await saveParsed(firebase, id, jisx0401s, jisx0402s, zips);
+  await saveParsed(firebase, id, jisx0401s, jisx0402s, parsed);
 
-  return {id, jisx0401s, jisx0402s, zips};
+  return {id, jisx0401s, jisx0402s, parsed};
 }
 
 /**
- * Merge arrays to the array of unique values。
- * @param {Array} a
- * @param {Array} b
+ * Save data as JSON and CSV ( UTF-8 / Shift_JIS )
+ * @param {Object} firebase Firebase API
+ * @param {Object} csvOptions
+ * @param {String} name File name
+ * @param {Array} cols
+ * @param {Array} data
+ * @return {Promise<void>}
+ */
+async function saveJsonAndCsv(firebase, csvOptions, name, cols, data) {
+  const {bucket, logger} = firebase;
+
+  await bucket.file(`${name}.json`).save(JSON.stringify(data));
+  logger.info(`saved: ${name}.json`);
+
+  const jisx0401CsvUtf8 = bucket.file(`${name}_utf8.csv`);
+  await jisx0401CsvUtf8.save(
+      stringify(
+          data.map((item) => cols.map((key) => item[key])),
+          csvOptions,
+      ),
+  );
+  logger.info(`saved: ${name}_utf8.csv`);
+
+  const jisx0401CsvSjis = bucket.file(`${name}_sjis.csv`);
+  await jisx0401CsvSjis.save(
+      iconv.encode(
+          stringify(
+              data.map((item) => cols.map((key) => item[key])),
+              csvOptions,
+          ),
+          "Shift_JIS",
+      ),
+  );
+  logger.info(`saved: ${name}_sjis.csv`);
+}
+
+/**
+ * Generate simple data from parsed data.
+ * @param {Array} parsed {jisx0401s, jisx0402s, parsed}
  * @return {Array}
  */
-function mergeArrays(a, b) {
-  return [...a, ...b.filter((i) => !a.includes(i))];
-}
+function generateSimpleData({jisx0401s, jisx0402s, parsed}) {
+  const simple = [];
 
-/**
- * Generate function to reduce data par zip2
- * @param {Object} logger
- * @param {Array} jisx0401s
- * @param {Array} jisx0402s
- * @param {Object} k
- * @param {Object} j
- * @return {function}
- */
-function reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j) {
-  return function(zip1) {
-    const zip2s = mergeArrays(
-        Object.keys(k[zip1] || {}),
-        Object.keys(j[zip1] || {}),
-    );
-    return {
-      zip1,
-      items: zip2s.reduce(
-          function(ret, zip2) {
-            let jisx0402 = "";
-            let addr1 = "";
-            let addr2 = "";
-            let name = "";
+  let jisx0402 = "";
+  let zip = "";
+  let addr1 = "";
+  let addr2 = "";
+  let name = "";
+  let note = "";
 
-            [
-              ...((k[zip1] || [])[zip2] || []),
-              ...((j[zip1] || [])[zip2] || []),
-            ].forEach(
-                function(item, index) {
-                  if (index === 0) {
-                    jisx0402 = item.jisx0402 || "";
-                    addr1 = item.addr1 || "";
-                    addr2 = item.addr2 || "";
-                    name = item.name || "";
-                  } else {
-                    if (jisx0402 !== item.jisx0402) {
-                      jisx0402 = "";
-                    }
-                    if (addr1 !== item.addr1) {
-                      if (addr1.startsWith(item.addr1)) {
-                        addr1 = item.addr1;
-                      } else if (!item.addr1.startsWith(addr1)) {
-                        addr1 = "";
-                      }
-                    }
-                    if (addr2 !== item.addr2) {
-                      addr2 = "";
-                    }
-                    if (name !== item.name) {
-                      name = "";
-                    }
-                  }
-                },
-            );
+  parsed.forEach(function(item) {
+    if (zip != item.zip) {
+      if (zip) {
+        simple.push({
+          zip,
+          pref: jisx0401s.find(function(item) {
+            return item.code === jisx0402.slice(0, 2);
+          }).name,
+          city: jisx0402s.find(function(item) {
+            return item.code === jisx0402;
+          }).name,
+          addr1,
+          addr2,
+          name,
+          note,
+        });
+      }
 
-            const pref = (jisx0401s.find(
-                (item) => item.code === jisx0402.slice(0, 2),
-            ) || {name: ""}).name;
-            const city = (jisx0402s.find(
-                (item) => item.code === jisx0402,
-            ) || {name: ""}).name;
+      zip = item.zip;
+      jisx0402 = item.jisx0402;
+      addr1 = item.addr1 || "";
+      addr2 = item.addr2 || "";
+      name = item.name || "";
+      note = item.note || "";
+    } else {
+      if (addr1 || addr2) {
+        note = note ? `${addr1}${addr2}（${note}）` : `${addr1}${addr2}`;
+        addr1 = "";
+        addr2 = "";
+      }
 
-            return {...ret, [zip2]: {pref, city, addr1, addr2, name}};
-          },
-          {},
-      ),
-    };
-  };
+      if (item.addr1 || item.addr2) {
+        note += item.note ?
+          // eslint-disable-next-line max-len
+          `${note ? "、" : ""}${item.addr1 || ""}${item.addr2 || ""}（${item.note}）` :
+          `${note ? "、" : ""}${item.addr1 || ""}${item.addr2 || ""}`;
+      } else {
+        note += `${note ? "、" : ""}${item.note}`;
+      }
+    }
+  });
+
+  if (zip) {
+    simple.push({
+      zip,
+      pref: jisx0401s.find(function(item) {
+        return item.code === jisx0402.slice(0, 2);
+      }).name,
+      city: jisx0402s.find(function(item) {
+        return item.code === jisx0402;
+      }).name,
+      addr1,
+      addr2,
+      name,
+      note,
+    });
+  }
+
+  return simple;
 }
 
 /**
@@ -513,7 +499,7 @@ function reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j) {
  * @return {Promise} void
  */
 async function parseSources(firebase, data) {
-  const {db, bucket, functions, logger} = firebase;
+  const {db, bucket, logger} = firebase;
 
   if (data.k.parsedAt && data.j.parsedAt) {
     return;
@@ -528,6 +514,12 @@ async function parseSources(firebase, data) {
     await getParsedData(firebase, data.j.id) :
     await parseSourceJ(firebase, data.j.id);
 
+  const csvOptions = {
+    quoted: true,
+    quoted_empty: true,
+    record_delimiter: "windows",
+  };
+
   const jisx0401s = [
     ...parsedK.jisx0401s,
     ...parsedJ.jisx0401s.filter(
@@ -535,9 +527,13 @@ async function parseSources(firebase, data) {
     ),
   ];
 
-  await bucket.file("jisx0401.json").save(JSON.stringify(jisx0401s));
-  await bucket.file("jisx0401.json").makePublic();
-  logger.info("merged: jisx0401.json");
+  await saveJsonAndCsv(
+      firebase,
+      csvOptions,
+      "jisx0401",
+      ["code", "name", "kana"],
+      jisx0401s,
+  );
 
   const jisx0402s = [
     ...parsedK.jisx0402s,
@@ -546,66 +542,32 @@ async function parseSources(firebase, data) {
     ),
   ];
 
-  await bucket.file("jisx0402.json").save(JSON.stringify(jisx0402s));
-  await bucket.file("jisx0402.json").makePublic();
-  logger.info("merged: jisx0402.json");
-
-  const k = parsedK.zips;
-  const j = parsedJ.zips;
-
-  const records = [];
-
-  mergeArrays(Object.keys(k), Object.keys(j))
-      .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
-      .forEach(
-          function({zip1, items}) {
-            Object.keys(items).forEach(
-                function(zip2) {
-                  const zip = `${zip1}${zip2}`;
-                  const {pref, city, addr1, addr2, name} = items[zip2];
-                  records.push([zip, pref, city, addr1, addr2, name]);
-                },
-            );
-          },
-      );
-
-  const json = bucket.file("simple.json");
-  await json.save(JSON.stringify(records.map(
-      ([zip, pref, city, addr1, addr2, name]) => ({
-        zip, pref, city, addr1, addr2, name,
-      })),
-  ));
-
-  logger.info("saved: simple.json");
-
-  const csvOptions = {
-    quoted: true,
-    quoted_empty: true,
-    record_delimiter: "windows",
-  };
-
-  const csvUtf8 = bucket.file("simple_utf8.csv");
-  await csvUtf8.save(stringify(records, csvOptions));
-
-  logger.info("saved: simple_utf8.csv");
-
-  const csvSjis = bucket.file("simple_sjis.csv");
-  await csvSjis.save(
-      iconv.encode(
-          stringify(records, csvOptions), "Shift_JIS",
-      ),
+  await saveJsonAndCsv(
+      firebase,
+      csvOptions,
+      "jisx0402",
+      ["code", "name", "kana"],
+      jisx0402s,
   );
 
-  logger.info("saved: simple_sjis.csv");
+  const simple = [
+    ...generateSimpleData(parsedK),
+    ...generateSimpleData(parsedJ),
+  ];
+
+  await saveJsonAndCsv(
+      firebase,
+      csvOptions,
+      "simple",
+      ["zip", "pref", "city", "addr1", "addr2", "name", "note"],
+      simple,
+  );
 
   const zipImage = new JSZip();
 
-  records.forEach(
-      function([zip, pref, city, addr1, addr2, name]) {
-        zipImage.file(
-            `${zip}.json`,
-            JSON.stringify({pref, city, addr1, addr2, name}),
-        );
+  simple.forEach(
+      function({zip, ...data}) {
+        zipImage.file(`${zip}.json`, JSON.stringify(data));
       },
   );
 
@@ -621,71 +583,114 @@ async function parseSources(firebase, data) {
   const saveHistory = (path) =>
     bucket.file(path).copy(bucket.file(`history/${prefix}_${path}`));
 
+  await saveHistory("simple_utf8.csv");
+  await saveHistory("simple_sjis.csv");
+  await saveHistory("simple.json");
+  await saveHistory("simple.zip");
+
   await bucket.file("update.txt").save(prefix);
   await bucket.file("update.txt").makePublic();
 
-  await saveHistory("simple.json");
-  await saveHistory("simple_utf8.csv");
-  await saveHistory("simple_sjis.csv");
-  await saveHistory("simple.zip");
-
   await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).update({
-    mergedAt: ts,
-  });
-
-  await Promise.all(
-      Array.from(Array(10).keys())
-          .map((prefix) => `${prefix}`)
-          .map((prefix) => setTaskQueue(functions, "generateSample", {
-            k: {id: data.k.id},
-            j: {id: data.j.id},
-            prefix,
-          }),
-          ),
-  );
-
-  logger.info("requestd: generateSample()");
-}
-
-/**
- * Generate sample json files.
- * @param {Object} firebase Firebase API
- * @param {Object} data {k, j, prefix}
- * @return {Promise} void
- */
-async function generateSample(firebase, data) {
-  const {db, bucket, logger} = firebase;
-
-  const jisx0401s= JSON.parse(await bucket.file("jisx0401.json").download());
-  const jisx0402s= JSON.parse(await bucket.file("jisx0402.json").download());
-  const k= JSON.parse(await bucket.file("work/k_zips.json").download());
-  const j= JSON.parse(await bucket.file("work/j_zips.json").download());
-
-  await mergeArrays(Object.keys(k), Object.keys(j))
-      .filter((zip1) => zip1.startsWith(data.prefix))
-      .map(reduceSimpleZip2(logger, jisx0401s, jisx0402s, k, j))
-      .reduce(
-          async function(ret, cur) {
-            await ret;
-            if (cur) {
-              const {zip1, items} = cur;
-              const file = bucket.file(`simple/${zip1}.json`);
-              await file.save(JSON.stringify(items));
-              await file.makePublic();
-            }
-            return null;
-          },
-          Promise.resolve(),
-      );
-
-  logger.info(`generated: simple/${data.prefix}??.json`);
-
-  const ts = new Date();
-
-  await db.collection(COLLECTION_SOURCES).doc(DOC_CURRENT).update({
-    [`generatedSample${data.prefix}At`]: ts,
+    savedSimpleAt: new Date(),
   });
 }
+
+// /**
+//  * Generate zip records from joind zip data.
+//  * @param {Object} zips Reslut
+//  * @param {string} code Zip code
+//  * @param {Object} item Joined zip data
+//  */
+// function generateZipRecord(zips, code, item) {
+//   if (
+//     item.addr1.match(/^以下に/) ||
+//     item.addr1.match(/場合$/) ||
+//     item.addr1.match(/一円$/) ||
+//     item.addr1.match(/～/)
+//   ) {
+//     item.note = item.addr1;
+//     item.addr1 = "";
+//   }
+
+//   if (
+//     item.addr2.match(/～/) ||
+//     item.addr2.match(/・/)||
+//     item.addr2.match(/「/)||
+//     item.addr2.match(/」/) ||
+//     item.addr2.match(/階層不明$/) ||
+//     item.addr2.match(/を除く/) ||
+//     item.addr2.match(/以外$/) ||
+//     item.addr2.match(/以上$/) ||
+//     item.addr2.match(/以下$/) ||
+//     item.addr2.match(/以内$/) ||
+//     item.addr2.match(/以降$/) ||
+//     item.addr2.match(/を含む$/) ||
+//     item.addr2.match(/その他$/) ||
+//     item.addr2.match(/○○/) ||
+//     item.addr2.match(
+//         /^[^０１２３４５６７８９－、]+[０１２３４５６７８９－、]+、[０１２３４５６７８９－、]+[^０１２３４５６７８９－、]+/,
+//     ) ||
+//     item.addr2.match(
+//         /^[０１２３４５６７８９－]+[^０１２３４５６７８９－、]+[０１２３４５６７８９－]+/,
+//     ) ||
+//   item.addr2 === "丁目" ||
+//     item.addr2 === "番地"||
+//     item.addr2 === "大字"
+//   ) {
+//     item.note = item.addr2;
+//     item.addr2 = "";
+//   }
+
+//   if (item.addr1 === "" && item.addr2 !== "") {
+//     item.addr1 = item.addr2;
+//     item.addr2 = "";
+//   }
+
+//   item.addr1.split("、")
+//       .map(
+//           function(addr1) {
+//             return {...item, addr1};
+//           },
+//       )
+//       .forEach(
+//           function(item1) {
+//             const suffix = item1.addr2.match(
+//                 /^[０１２３４５６７８９－、]+[^０１２３４５６７８９－、]+$/,
+//             ) ? item1.addr2.replace(/^[０１２３４５６７８９－、]+/, "") : "";
+//             const addr2s = item1.addr2.split("、")
+//                 .map(
+//                     function(str) {
+//                       if (suffix && !str.endsWith(suffix)) {
+//                         return `${str}${suffix}`;
+//                       }
+//                       return str;
+//                     },
+//                 );
+//             addr2s.map(
+//                 function(addr2) {
+//                   return {...item1, addr2};
+//                 },
+//             )
+//                 .forEach(
+//                     function(item2) {
+//                       const zip1 = code.slice(0, 3);
+//                       const zip2 = code.slice(3);
+
+//                       if (!zips[zip1]) {
+//                         zips[zip1] = {};
+//                       }
+
+//                       if (!zips[zip1][zip2]) {
+//                         zips[zip1][zip2] = [];
+//                       }
+
+//                       zips[zip1][zip2].push(item2);
+//                     },
+//                 );
+//           },
+//       );
+// }
 
 /**
  * Report status of getSources, parseSources and generateSample.
@@ -726,17 +731,7 @@ async function reportStatus(firebase, config) {
   );
 
   [
-    "mergedAt",
-    "generatedSample0At",
-    "generatedSample1At",
-    "generatedSample2At",
-    "generatedSample3At",
-    "generatedSample4At",
-    "generatedSample5At",
-    "generatedSample6At",
-    "generatedSample7At",
-    "generatedSample8At",
-    "generatedSample9At",
+    "savedSimpleAt",
   ].forEach(
       function(field) {
         if (data[field] && data[field].toDate) {
@@ -787,6 +782,5 @@ ${report.join("\n")}
 module.exports = {
   getSources,
   parseSources,
-  generateSample,
   reportStatus,
 };

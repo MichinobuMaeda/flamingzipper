@@ -98,14 +98,6 @@ describe("parseSources", function() {
   });
 });
 
-describe("generateSample", function() {
-  it("calls generateSample()", function() {
-    const wrapped = test.wrap(index.generateSample);
-    wrapped();
-    expect(zip.generateSample.mock.calls).toHaveLength(1);
-  });
-});
-
 describe("reportStatus", function() {
   it("calls reportStatus()", function() {
     const wrapped = test.wrap(index.reportStatus);

@@ -11,7 +11,6 @@ const accounts = require("./accounts");
 const {
   getSources,
   parseSources,
-  generateSample,
   reportStatus,
 } = require("./zip");
 
@@ -63,11 +62,6 @@ exports.parseSources = functions.region(region)
     .runWith({timeoutSeconds, memory: "2GB"})
     .tasks.taskQueue()
     .onDispatch((data) => parseSources(firebase, data));
-
-exports.generateSample = functions.region(region)
-    .runWith({timeoutSeconds})
-    .tasks.taskQueue()
-    .onDispatch((data) => generateSample(firebase, data));
 
 exports.reportStatus = functions.region(region)
     .pubsub.schedule("57 2 * * *").timeZone(timeZone)

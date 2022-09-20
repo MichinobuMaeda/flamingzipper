@@ -11,7 +11,6 @@ const {
 const {
   getSources,
   parseSources,
-  generateSample,
   reportStatus,
 } = require("./zip");
 
@@ -381,7 +380,7 @@ describe("parseSources", function() {
         .mockResolvedValueOnce(
             [await readFile(path.join(pathData, "j_jisx0402.json"))])
         .mockResolvedValueOnce(
-            [await readFile(path.join(pathData, "j_zips.json"))]);
+            [await readFile(path.join(pathData, "j_parsed.json"))]);
 
     await parseSources(
         firebase,
@@ -405,36 +404,41 @@ describe("parseSources", function() {
       // saveParsed
       [expect.stringMatching(/work\/k[0-9]+_jisx0401.json/)],
       [expect.stringMatching(/work\/k[0-9]+_jisx0402.json/)],
-      [expect.stringMatching(/work\/k[0-9]+_zips.json/)],
+      [expect.stringMatching(/work\/k[0-9]+_parsed.json/)],
       [expect.stringMatching(/work\/k[0-9]+_jisx0401.json/)],
       ["work/k_jisx0401.json"],
       [expect.stringMatching(/work\/k[0-9]+_jisx0402.json/)],
       ["work/k_jisx0402.json"],
-      [expect.stringMatching(/work\/k[0-9]+_zips.json/)],
-      ["work/k_zips.json"],
+      [expect.stringMatching(/work\/k[0-9]+_parsed.json/)],
+      ["work/k_parsed.json"],
       // getParsedData
       ["work/j_jisx0401.json"],
       ["work/j_jisx0402.json"],
-      ["work/j_zips.json"],
+      ["work/j_parsed.json"],
+      // save jisX0401
       ["jisx0401.json"],
-      ["jisx0401.json"],
+      ["jisx0401_utf8.csv"],
+      ["jisx0401_sjis.csv"],
+      // save sisX0402
       ["jisx0402.json"],
-      ["jisx0402.json"],
+      ["jisx0402_utf8.csv"],
+      ["jisx0402_sjis.csv"],
+      // save simple
       ["simple.json"],
       ["simple_utf8.csv"],
       ["simple_sjis.csv"],
       ["simple.zip"],
-      ["update.txt"],
-      ["update.txt"],
       // saveHistory
-      ["simple.json"],
-      [expect.stringMatching(/history\/[0-9]+_simple.json/)],
       ["simple_utf8.csv"],
       [expect.stringMatching(/history\/[0-9]+_simple_utf8.csv/)],
       ["simple_sjis.csv"],
       [expect.stringMatching(/history\/[0-9]+_simple_sjis.csv/)],
+      ["simple.json"],
+      [expect.stringMatching(/history\/[0-9]+_simple.json/)],
       ["simple.zip"],
       [expect.stringMatching(/history\/[0-9]+_simple.zip/)],
+      ["update.txt"],
+      ["update.txt"],
     ]);
 
     expect(mockDoc.mock.calls).toEqual([
@@ -444,91 +448,60 @@ describe("parseSources", function() {
 
     expect(mockDocRef.update.mock.calls).toEqual([
       [{["k.parsedAt"]: expect.any(Date)}],
-      [{mergedAt: expect.any(Date)}],
+      [{savedSimpleAt: expect.any(Date)}],
     ]);
 
     expect(firebase.logger.info.mock.calls).toEqual([
       [expect.stringMatching(/k: k[0-9]+, j: j[0-9]+/)],
       ["extracted: KEN_ALL.CSV"],
       [expect.stringContaining("parsed: k")],
-      ["merged: jisx0401.json"],
-      ["merged: jisx0402.json"],
+      ["saved: jisx0401.json"],
+      ["saved: jisx0401_utf8.csv"],
+      ["saved: jisx0401_sjis.csv"],
+      ["saved: jisx0402.json"],
+      ["saved: jisx0402_utf8.csv"],
+      ["saved: jisx0402_sjis.csv"],
       ["saved: simple.json"],
       ["saved: simple_utf8.csv"],
       ["saved: simple_sjis.csv"],
       ["saved: simple.zip"],
-      ["requestd: generateSample()"],
     ]);
 
-    const orderBy = (field) => (a, b) => a[field] === b[field] ?
-          0 : a[field] < b[field] ? -1 : 1;
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[0][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "k_jisx0401.json"))),
+    );
 
-    const saved101 = JSON.parse(mockBucketFileSave.mock.calls[0][0])
-        .map((item) => ({code: item.code, name: item.name}));
-    const comp101 = JSON
-        .parse(await readFile(path.join(pathData, "k_jisx0401.json")))
-        .map((item) => ({code: item.code, name: item.name}));
-    const saved102 = JSON.parse(mockBucketFileSave.mock.calls[1][0])
-        .map((item) => ({code: item.code, name: item.name}));
-    const comp102 = JSON
-        .parse(await readFile(path.join(pathData, "k_jisx0402.json")))
-        .map((item) => ({code: item.code, name: item.name}));
-    const savedZips = JSON.parse(mockBucketFileSave.mock.calls[2][0]);
-    const compZips = JSON
-        .parse(await readFile(path.join(pathData, "k_zips.json")));
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[1][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "k_jisx0402.json"))),
+    );
 
-    saved101.sort(orderBy("code"));
-    comp101.sort(orderBy("code"));
-    saved102.sort(orderBy("code"));
-    comp102.sort(orderBy("code"));
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[2][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "k_parsed.json"))),
+    );
 
-    expect(saved101).toEqual(comp101);
-    expect(saved102).toEqual(comp102);
-    expect(savedZips).toEqual(compZips);
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[3][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "jisx0401.json"))),
+    );
 
-    const saved101Merged = JSON.parse(mockBucketFileSave.mock.calls[3][0])
-        .map((item) => ({code: item.code, name: item.name}));
-    const comp101Merged = JSON
-        .parse(await readFile(path.join(pathData, "jisx0401.json")))
-        .map((item) => ({code: item.code, name: item.name}));
-    const saved102Merged = JSON.parse(mockBucketFileSave.mock.calls[4][0])
-        .map((item) => ({code: item.code, name: item.name}));
-    const comp102Merged = JSON
-        .parse(await readFile(path.join(pathData, "jisx0402.json")))
-        .map((item) => ({code: item.code, name: item.name}));
-    const savedZipsMerged = JSON.parse(mockBucketFileSave.mock.calls[5][0]);
-    const compZipsMerged = JSON
-        .parse(await readFile(path.join(pathData, "simple.json")));
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[6][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "jisx0402.json"))),
+    );
 
-    saved101Merged.sort(orderBy("code"));
-    comp101Merged.sort(orderBy("code"));
-    saved102Merged.sort(orderBy("code"));
-    comp102Merged.sort(orderBy("code"));
-    savedZipsMerged.sort(orderBy("zip"));
-    compZipsMerged.sort(orderBy("zip"));
-
-    expect(saved101Merged).toEqual(comp101Merged);
-    expect(saved102Merged).toEqual(comp102Merged);
-    expect(savedZipsMerged).toEqual(compZipsMerged);
-
-    expect(mockBucketFileSave.mock.calls).toHaveLength(10);
-
-    expect(mockTaskQueue.enqueue.mock.calls[0]).toEqual([
-      {
-        k: {id: "k20200101000000000000"},
-        j: {id: "j20200101000000000001"},
-        prefix: "0",
-      },
-    ]);
-
-    expect(mockTaskQueue.enqueue.mock.calls[9]).toEqual([
-      {
-        k: {id: "k20200101000000000000"},
-        j: {id: "j20200101000000000001"},
-        prefix: "9",
-      },
-    ]);
-    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(10);
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[9][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "simple.json"))),
+    );
   });
 
   it("parses new jigyosyo.zip.", async function() {
@@ -541,7 +514,7 @@ describe("parseSources", function() {
         .mockResolvedValueOnce(
             [await readFile(path.join(pathData, "k_jisx0402.json"))])
         .mockResolvedValueOnce(
-            [await readFile(path.join(pathData, "k_zips.json"))])
+            [await readFile(path.join(pathData, "k_parsed.json"))])
         // getSourceData
         .mockResolvedValueOnce([Buffer.from(zipDataJ)]);
 
@@ -565,38 +538,43 @@ describe("parseSources", function() {
       // getParsedData
       ["work/k_jisx0401.json"],
       ["work/k_jisx0402.json"],
-      ["work/k_zips.json"],
+      ["work/k_parsed.json"],
       // getSourceInfo
       [expect.stringMatching(/sources\/j[0-9]+.zip/)],
       // saveParsed
       [expect.stringMatching(/work\/j[0-9]+_jisx0401.json/)],
       [expect.stringMatching(/work\/j[0-9]+_jisx0402.json/)],
-      [expect.stringMatching(/work\/j[0-9]+_zips.json/)],
+      [expect.stringMatching(/work\/j[0-9]+_parsed.json/)],
       [expect.stringMatching(/work\/j[0-9]+_jisx0401.json/)],
       ["work/j_jisx0401.json"],
       [expect.stringMatching(/work\/j[0-9]+_jisx0402.json/)],
       ["work/j_jisx0402.json"],
-      [expect.stringMatching(/work\/j[0-9]+_zips.json/)],
-      ["work/j_zips.json"],
+      [expect.stringMatching(/work\/j[0-9]+_parsed.json/)],
+      ["work/j_parsed.json"],
+      // save jisX0401
       ["jisx0401.json"],
-      ["jisx0401.json"],
+      ["jisx0401_utf8.csv"],
+      ["jisx0401_sjis.csv"],
+      // save sisX0402
       ["jisx0402.json"],
-      ["jisx0402.json"],
+      ["jisx0402_utf8.csv"],
+      ["jisx0402_sjis.csv"],
+      // save simple
       ["simple.json"],
       ["simple_utf8.csv"],
       ["simple_sjis.csv"],
       ["simple.zip"],
-      ["update.txt"],
-      ["update.txt"],
       // saveHistory
-      ["simple.json"],
-      [expect.stringMatching(/history\/[0-9]+_simple.json/)],
       ["simple_utf8.csv"],
       [expect.stringMatching(/history\/[0-9]+_simple_utf8.csv/)],
       ["simple_sjis.csv"],
       [expect.stringMatching(/history\/[0-9]+_simple_sjis.csv/)],
+      ["simple.json"],
+      [expect.stringMatching(/history\/[0-9]+_simple.json/)],
       ["simple.zip"],
       [expect.stringMatching(/history\/[0-9]+_simple.zip/)],
+      ["update.txt"],
+      ["update.txt"],
     ]);
 
     expect(mockDoc.mock.calls).toEqual([
@@ -606,166 +584,59 @@ describe("parseSources", function() {
 
     expect(mockDocRef.update.mock.calls).toEqual([
       [{["j.parsedAt"]: expect.any(Date)}],
-      [{mergedAt: expect.any(Date)}],
+      [{savedSimpleAt: expect.any(Date)}],
     ]);
 
     expect(firebase.logger.info.mock.calls).toEqual([
       [expect.stringMatching(/k: k[0-9]+, j: j[0-9]+/)],
       ["extracted: JIGYOSYO.CSV"],
       [expect.stringContaining("parsed: j")],
-      ["merged: jisx0401.json"],
-      ["merged: jisx0402.json"],
+      ["saved: jisx0401.json"],
+      ["saved: jisx0401_utf8.csv"],
+      ["saved: jisx0401_sjis.csv"],
+      ["saved: jisx0402.json"],
+      ["saved: jisx0402_utf8.csv"],
+      ["saved: jisx0402_sjis.csv"],
       ["saved: simple.json"],
       ["saved: simple_utf8.csv"],
       ["saved: simple_sjis.csv"],
       ["saved: simple.zip"],
-      ["requestd: generateSample()"],
     ]);
 
-    const orderBy = (field) => (a, b) => a[field] === b[field] ?
-            0 : a[field] < b[field] ? -1 : 1;
-
-    const saved101 = JSON.parse(mockBucketFileSave.mock.calls[0][0])
-        .map((item) => ({code: item.code, name: item.name}));
-    const comp101 = JSON
-        .parse(await readFile(path.join(pathData, "j_jisx0401.json")))
-        .map((item) => ({code: item.code, name: item.name}));
-    const saved102 = JSON.parse(mockBucketFileSave.mock.calls[1][0])
-        .map((item) => ({code: item.code, name: item.name}));
-    const comp102 = JSON
-        .parse(await readFile(path.join(pathData, "j_jisx0402.json")))
-        .map((item) => ({code: item.code, name: item.name}));
-    const savedZips = JSON.parse(mockBucketFileSave.mock.calls[2][0]);
-    const compZips = JSON
-        .parse(await readFile(path.join(pathData, "j_zips.json")));
-
-    saved101.sort(orderBy("code"));
-    comp101.sort(orderBy("code"));
-    saved102.sort(orderBy("code"));
-    comp102.sort(orderBy("code"));
-
-    expect(saved101).toEqual(comp101);
-    expect(saved102).toEqual(comp102);
-    expect(savedZips).toEqual(compZips);
-
-    const saved101Merged = JSON.parse(mockBucketFileSave.mock.calls[3][0])
-        .map((item) => ({code: item.code, name: item.name}));
-    const comp101Merged = JSON
-        .parse(await readFile(path.join(pathData, "jisx0401.json")))
-        .map((item) => ({code: item.code, name: item.name}));
-    const saved102Merged = JSON.parse(mockBucketFileSave.mock.calls[4][0])
-        .map((item) => ({code: item.code, name: item.name}));
-    const comp102Merged = JSON
-        .parse(await readFile(path.join(pathData, "jisx0402.json")))
-        .map((item) => ({code: item.code, name: item.name}));
-    const savedZipsMerged = JSON.parse(mockBucketFileSave.mock.calls[5][0]);
-    const compZipsMerged = JSON
-        .parse(await readFile(path.join(pathData, "simple.json")));
-
-    saved101Merged.sort(orderBy("code"));
-    comp101Merged.sort(orderBy("code"));
-    saved102Merged.sort(orderBy("code"));
-    comp102Merged.sort(orderBy("code"));
-    savedZipsMerged.sort(orderBy("zip"));
-    compZipsMerged.sort(orderBy("zip"));
-
-    expect(saved101Merged).toEqual(comp101Merged);
-    expect(saved102Merged).toEqual(comp102Merged);
-    expect(savedZipsMerged).toEqual(compZipsMerged);
-
-    expect(mockBucketFileSave.mock.calls).toHaveLength(10);
-
-    expect(mockTaskQueue.enqueue.mock.calls[0]).toEqual([
-      {
-        k: {id: "k20200101000000000000"},
-        j: {id: "j20200101000000000001"},
-        prefix: "0",
-      },
-    ]);
-
-    expect(mockTaskQueue.enqueue.mock.calls[9]).toEqual([
-      {
-        k: {id: "k20200101000000000000"},
-        j: {id: "j20200101000000000001"},
-        prefix: "9",
-      },
-    ]);
-    expect(mockTaskQueue.enqueue.mock.calls).toHaveLength(10);
-  });
-});
-
-describe("generateSample", function() {
-  it("generates sample json files.", async function() {
-    Array.from(Array(10).keys()).reduce(
-        function(ret) {
-          ret
-              .mockReturnValueOnce(
-                  readFile(path.join(pathData, "jisx0401.json")),
-              )
-              .mockReturnValueOnce(
-                  readFile(path.join(pathData, "jisx0402.json")),
-              )
-              .mockReturnValueOnce(
-                  readFile(path.join(pathData, "k_zips.json")),
-              )
-              .mockReturnValueOnce(
-                  readFile(path.join(pathData, "j_zips.json")),
-              );
-          return ret;
-        },
-        mockBucketFileDownload,
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[0][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "j_jisx0401.json"))),
     );
 
-    const data = {
-      k: {id: "k20200101000000000000"},
-      j: {id: "j20200101000000000001"},
-    };
-    await generateSample(firebase, {...data, prefix: "0"});
-    await generateSample(firebase, {...data, prefix: "1"});
-    await generateSample(firebase, {...data, prefix: "2"});
-    await generateSample(firebase, {...data, prefix: "3"});
-    await generateSample(firebase, {...data, prefix: "4"});
-    await generateSample(firebase, {...data, prefix: "5"});
-    await generateSample(firebase, {...data, prefix: "6"});
-    await generateSample(firebase, {...data, prefix: "7"});
-    await generateSample(firebase, {...data, prefix: "8"});
-    await generateSample(firebase, {...data, prefix: "9"});
-
-    expect(firebase.logger.info.mock.calls).toEqual([
-      ["generated: simple/0??.json"],
-      ["generated: simple/1??.json"],
-      ["generated: simple/2??.json"],
-      ["generated: simple/3??.json"],
-      ["generated: simple/4??.json"],
-      ["generated: simple/5??.json"],
-      ["generated: simple/6??.json"],
-      ["generated: simple/7??.json"],
-      ["generated: simple/8??.json"],
-      ["generated: simple/9??.json"],
-    ]);
-
-    const zip1s = mockBucketFile.mock.calls
-        .map((item) => item[0].replace(/[^0-9]/g, ""))
-        .filter((zip1) => zip1.length === 3);
-    console.log(zip1s);
-    const output = mockBucketFileSave.mock.calls.reduce(
-        function(ret, cur, index) {
-          const zip1 = zip1s[index];
-          const data = JSON.parse(cur[0]);
-          return {
-            ...ret,
-            [zip1]: data,
-          };
-        },
-        {},
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[1][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "j_jisx0402.json"))),
     );
 
-    // await writeFile(
-    //     path.join(pathTmp, "sample.json"),
-    //     JSON.stringify(output),
-    // );
-    expect(output).toEqual(
-        JSON.parse(await readFile(path.join(pathData, "sample.json"))),
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[2][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "j_parsed.json"))),
+    );
+
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[3][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "jisx0401.json"))),
+    );
+
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[6][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "jisx0402.json"))),
+    );
+
+    expect(
+        JSON.parse(mockBucketFileSave.mock.calls[9][0]),
+    ).toEqual(
+        JSON.parse(await readFile(path.join(pathData, "simple.json"))),
     );
   });
 });
@@ -798,17 +669,7 @@ describe("reportStatus", function() {
         savedAt: createTimestamp("2022-01-01T00:00:00.010Z"),
         parsedAt: createTimestamp("2022-01-01T00:00:00.021Z"),
       },
-      "mergedAt": createTimestamp("2022-01-01T00:00:00.020Z"),
-      "generatedSample0At": createTimestamp("2022-01-01T00:00:00.030Z"),
-      "generatedSample1At": createTimestamp("2022-01-01T00:00:00.031Z"),
-      "generatedSample2At": createTimestamp("2022-01-01T00:00:00.032Z"),
-      "generatedSample3At": createTimestamp("2022-01-01T00:00:00.033Z"),
-      "generatedSample4At": createTimestamp("2022-01-01T00:00:00.034Z"),
-      "generatedSample5At": createTimestamp("2022-01-01T00:00:00.035Z"),
-      "generatedSample6At": createTimestamp("2022-01-01T00:00:00.036Z"),
-      "generatedSample7At": createTimestamp("2022-01-01T00:00:00.037Z"),
-      "generatedSample8At": createTimestamp("2022-01-01T00:00:00.038Z"),
-      "generatedSample9At": createTimestamp("2022-01-01T00:00:00.039Z"),
+      "savedSimpleAt": createTimestamp("2022-01-01T00:00:00.020Z"),
       "reportedAt": createTimestamp("2022-01-01T00:00:00.090Z"),
     });
     mockDocRef.get.mockResolvedValueOnce(info);
@@ -835,17 +696,7 @@ describe("reportStatus", function() {
         savedAt: createTimestamp("2022-01-01T00:00:00.010Z"),
         parsedAt: createTimestamp("2022-01-01T00:00:00.021Z"),
       },
-      "mergedAt": createTimestamp("2022-01-01T00:00:00.020Z"),
-      "generatedSample0At": createTimestamp("2022-01-01T00:00:00.030Z"),
-      "generatedSample1At": createTimestamp("2022-01-01T00:00:00.031Z"),
-      "generatedSample2At": createTimestamp("2022-01-01T00:00:00.032Z"),
-      "generatedSample3At": createTimestamp("2022-01-01T00:00:00.033Z"),
-      "generatedSample4At": createTimestamp("2022-01-01T00:00:00.034Z"),
-      "generatedSample5At": createTimestamp("2022-01-01T00:00:00.035Z"),
-      "generatedSample6At": createTimestamp("2022-01-01T00:00:00.036Z"),
-      "generatedSample7At": createTimestamp("2022-01-01T00:00:00.037Z"),
-      "generatedSample8At": createTimestamp("2022-01-01T00:00:00.038Z"),
-      "generatedSample9At": createTimestamp("2022-01-01T00:00:00.039Z"),
+      "savedSimpleAt": createTimestamp("2022-01-01T00:00:00.020Z"),
     });
     const admins = createFirestoreDocSnapMock(jest, "admins");
     admins.data.mockReturnValue({
@@ -897,17 +748,7 @@ describe("reportStatus", function() {
         savedAt: createTimestamp("2022-01-01T00:00:00.010Z"),
         parsedAt: createTimestamp("2022-01-01T00:00:00.021Z"),
       },
-      "mergedAt": createTimestamp("2022-01-01T00:00:00.020Z"),
-      "generatedSample0At": createTimestamp("2022-01-01T00:00:00.030Z"),
-      "generatedSample1At": createTimestamp("2022-01-01T00:00:00.031Z"),
-      "generatedSample2At": createTimestamp("2022-01-01T00:00:00.032Z"),
-      "generatedSample3At": createTimestamp("2022-01-01T00:00:00.033Z"),
-      "generatedSample4At": createTimestamp("2022-01-01T00:00:00.034Z"),
-      "generatedSample5At": createTimestamp("2022-01-01T00:00:00.035Z"),
-      "generatedSample6At": createTimestamp("2022-01-01T00:00:00.036Z"),
-      "generatedSample7At": createTimestamp("2022-01-01T00:00:00.037Z"),
-      // "generatedSample8At": createTimestamp("2022-01-01T00:00:00.038Z"),
-      "generatedSample9At": createTimestamp("2022-01-01T00:00:00.039Z"),
+      // "savedSimpleAt": createTimestamp("2022-01-01T00:00:00.020Z"),
     });
     const admins = createFirestoreDocSnapMock(jest, "admins");
     admins.data.mockReturnValue({
