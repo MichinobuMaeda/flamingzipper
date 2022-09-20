@@ -21,8 +21,14 @@ class SignInSignUpSliver extends ConsumerWidget {
         Row(
           children: [
             ChoiceChip(
-              avatar: const Icon(Icons.login),
-              label: Text(L10n.of(context)!.signIn),
+              label: Wrap(
+                direction: Axis.horizontal,
+                spacing: 8.0,
+                children: [
+                  const Icon(Icons.login),
+                  Text(L10n.of(context)!.signIn),
+                ],
+              ),
               selected: !register,
               selectedColor: chipSelectedColor(context),
               padding: chipPadding,
@@ -33,8 +39,14 @@ class SignInSignUpSliver extends ConsumerWidget {
             ),
             const SizedBox(width: spacing),
             ChoiceChip(
-              avatar: const Icon(Icons.person_add),
-              label: Text(L10n.of(context)!.register),
+              label: Wrap(
+                direction: Axis.horizontal,
+                spacing: 8.0,
+                children: [
+                  const Icon(Icons.person_add),
+                  Text(L10n.of(context)!.register),
+                ],
+              ),
               selected: register,
               selectedColor: chipSelectedColor(context),
               padding: chipPadding,

@@ -140,3 +140,9 @@ https://console.firebase.google.com/
 ```
 $ npx firebase functions:config:set mail.sender=...
 ```
+
+To reflect changes in `flutter_native_splash.yaml`
+
+```
+$ fvm flutter pub run flutter_native_splash:create
+```

@@ -22,13 +22,20 @@ const chipPadding = EdgeInsets.symmetric(
 Color chipSelectedColor(BuildContext context) =>
     Theme.of(context).colorScheme.primary.withAlpha(64);
 
+const buttonPaddint = EdgeInsets.symmetric(
+  vertical: 20.0,
+  horizontal: 24.0,
+);
+
 ButtonStyle filledButtonStyle(BuildContext context) => ElevatedButton.styleFrom(
-      primary: Theme.of(context).colorScheme.primary,
-      onPrimary: Theme.of(context).colorScheme.onPrimary,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+      padding: buttonPaddint,
     );
 
 ButtonStyle fullWithdOutlinedButtonStyle = OutlinedButton.styleFrom(
   minimumSize: const Size.fromHeight(40.0),
+  padding: buttonPaddint,
 );
 
 Color listItemColor(BuildContext context, int index) => index.isOdd
@@ -50,9 +57,12 @@ Alignment logoAlignment(BuildContext context) =>
 double menuBarHeight(BuildContext context) =>
     MediaQuery.of(context).size.height < mobileHeight ? 72.0 : 152.0;
 
-Widget menuBackground(BuildContext context) => Image(
-      image: AssetImage(logoAssetName(context)),
-      alignment: logoAlignment(context),
+Widget menuBackground(BuildContext context) => Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Image(
+        image: AssetImage(logoAssetName(context)),
+        alignment: logoAlignment(context),
+      ),
     );
 
 class SliverWithSingleColumn extends StatelessWidget {
